@@ -20,24 +20,20 @@ struct NotchGeometry: Equatable {
 
     // MARK: Expanded (scanning, success, failure)
 
-    /// The panel's body while scanning: room for the Face ID glyph under the housing.
+    /// The panel's body while scanning, laid out like the Now Playing panel: the camera housing's row on top, and
+    /// below it a row with the Face ID glyph, a title and subtitle, and a lock.
     var expandedSize: CGSize {
         switch style {
-        case .notch: CGSize(width: max(closedSize.width + 40, 228), height: closedSize.height + 112)
-        case .island: CGSize(width: 150, height: 150)
+        case .notch: CGSize(width: max(closedSize.width + 150, 344), height: closedSize.height + Self.contentRowHeight)
+        case .island: CGSize(width: 320, height: Self.contentRowHeight + 8)
         }
     }
 
-    /// Where the glyph sits in the expanded panel: centered in what's below the housing.
-    var glyphCenterY: CGFloat {
-        switch style {
-        case .notch: closedSize.height + (expandedSize.height - closedSize.height) / 2 - 2
-        case .island: expandedSize.height / 2
-        }
-    }
+    /// The content row's height, below the housing.
+    static let contentRowHeight: CGFloat = 70
 
-    /// The ring's diameter.
-    static let glyphSize: CGFloat = 62
+    /// The Face ID glyph's size.
+    static let glyphSize: CGFloat = 38
 
     // MARK: Compact (notices: "Touch ID to turn on", "Try again")
 
@@ -96,10 +92,10 @@ struct NotchGeometry: Equatable {
     // MARK: Springs
 
     /// Opening overshoots a touch, like the Dynamic Island; closing settles without bouncing.
-    static let openSpring = Animation.spring(response: 0.42, dampingFraction: 0.72)
-    static let closeSpring = Animation.spring(response: 0.38, dampingFraction: 1)
+    static let openSpring = Animation.spring(response: 0.5, dampingFraction: 0.74)
+    static let closeSpring = Animation.spring(response: 0.42, dampingFraction: 1)
     /// How long closing takes to look finished, before the window goes away.
-    static let closeDuration: Duration = .milliseconds(420)
+    static let closeDuration: Duration = .milliseconds(460)
 
     // MARK: Screens
 

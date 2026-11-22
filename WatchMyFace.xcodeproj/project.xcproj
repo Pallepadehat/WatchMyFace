@@ -20,12 +20,6 @@
       "version": {
         "version": "2.10.1",
       },
-    }, {
-      "kind": "remote",
-      "repository": "https://github.com/airbnb/lottie-spm",
-      "version": {
-        "version": "4.6.1",
-      },
     },
   ],
   "files": [
@@ -65,10 +59,6 @@
         }, {
           "package": "Sparkle",
           "product-name": "Sparkle",
-          "build-phase": { "build-phase": "frameworks" },
-        }, {
-          "package": "lottie-spm",
-          "product-name": "Lottie",
           "build-phase": { "build-phase": "frameworks" },
         },
       ],

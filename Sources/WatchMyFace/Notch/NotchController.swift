@@ -30,7 +30,7 @@ enum NotchState: Equatable {
         }
     }
 
-    var glyphPhase: FaceGlyph.Phase {
+    var glyphPhase: FaceIDGlyph.Phase {
         switch self {
         case .scanning: .scanning
         case .success: .success
@@ -49,8 +49,6 @@ enum NotchState: Equatable {
 final class NotchController {
     private(set) var state: NotchState = .closed
     private(set) var geometry: NotchGeometry
-    /// Counts failures, so each one shakes the notch again.
-    private(set) var failureCount = 0
 
     /// Called when the pointer moves onto the notch while it's showing a failure or a notice: hover to retry.
     @ObservationIgnored var onHover: (() -> Void)?
@@ -104,7 +102,6 @@ final class NotchController {
 
     private func apply(_ newState: NotchState) {
         guard newState != state else { return }
-        if newState == .failure { failureCount += 1 }
         switch newState {
         case .scanning: Haptics.perform(.generic)
         case .success: Haptics.perform(.levelChange)

@@ -33,9 +33,8 @@ private struct WelcomeStep: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            FaceGlyph(phase: .success)
-                .frame(width: 96 * FaceGlyph.frameToRing.width, height: 96 * FaceGlyph.frameToRing.height)
-                .frame(height: 110)
+            FaceIDDemo(size: 84)
+                .padding(.bottom, 4)
             Text("Unlock your Mac with a glance").font(.system(size: 28, weight: .bold))
             Text("When your Mac wakes up locked, WatchMyFace looks for you in the notch and unlocks it when it's you. Everything happens on this Mac.")
                 .multilineTextAlignment(.center)
@@ -168,6 +167,25 @@ private struct DoneStep: View {
 }
 
 // MARK: - Pieces
+
+/// The Face ID glyph going round its whole story on a loop: face, scan, tick.
+private struct FaceIDDemo: View {
+    let size: CGFloat
+    @State private var phase = FaceIDGlyph.Phase.idle
+
+    var body: some View {
+        FaceIDGlyph(phase: phase, size: size)
+            .task {
+                let steps: [(FaceIDGlyph.Phase, Duration)] = [(.idle, .seconds(1.4)), (.scanning, .seconds(1.6)), (.success, .seconds(2))]
+                while !Task.isCancelled {
+                    for (step, duration) in steps {
+                        phase = step
+                        try? await Task.sleep(for: duration)
+                    }
+                }
+            }
+    }
+}
 
 private struct StepHeader: View {
     let title: String

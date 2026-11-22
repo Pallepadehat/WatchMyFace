@@ -27,30 +27,85 @@ struct NotchView: View {
     var body: some View {
         ZStack(alignment: .top) {
             NotchBackground(shape: shape, solidHeight: state.isExpanded ? geometry.closedSize.height : nil)
-            glyph
+            expandedContent
             notice
         }
-        .frame(width: bodySize.width + geometry.flare(topRadius: topRadius), height: bodySize.height)
+        .frame(width: panelWidth, height: bodySize.height, alignment: .top)
         .clipShape(shape)
-        .shadow(color: .black.opacity(state == .closed ? 0 : 0.35), radius: 14, y: 4)
-        .modifier(Shake(trigger: controller.failureCount))
+        // Soft and low, like a sheet's: just enough to lift the panel off whatever's under it.
+        .shadow(color: .black.opacity(state == .closed ? 0 : 0.22), radius: 22, y: 10)
         .offset(y: geometry.style == .island ? NotchGeometry.islandTopGap : 0)
         .animation(state == .closed ? NotchGeometry.closeSpring : NotchGeometry.openSpring, value: state)
         .frame(width: geometry.windowSize.width, height: geometry.windowSize.height, alignment: .top)
         .preferredColorScheme(.dark)
     }
 
-    /// The glyph rides the shape's spring in: it sharpens, grows and fades in as the panel opens, and dissolves the
-    /// same way as it closes, rather than being cut off by the shrinking shape.
-    private var glyph: some View {
-        FaceGlyph(phase: state.glyphPhase)
-            .frame(width: NotchGeometry.glyphSize * FaceGlyph.frameToRing.width, height: NotchGeometry.glyphSize * FaceGlyph.frameToRing.height)
-            .scaleEffect(state.isExpanded ? 1 : 0.35)
-            .blur(radius: state.isExpanded ? 0 : 16)
-            .opacity(state.isExpanded ? 1 : 0)
-            .modifier(Breathing(isActive: state == .scanning))
-            .position(x: (bodySize.width + geometry.flare(topRadius: topRadius)) / 2, y: geometry.glyphCenterY)
-            .allowsHitTesting(false)
+    private var panelWidth: CGFloat { bodySize.width + geometry.flare(topRadius: topRadius) }
+
+    /// The row under the housing. It rides the shape's spring: it sharpens, grows and fades in as the panel opens,
+    /// and dissolves the same way as it closes, rather than being cut off by the shrinking shape.
+    private var expandedContent: some View {
+        HStack(spacing: 14) {
+            FaceIDGlyph(phase: state.glyphPhase, size: NotchGeometry.glyphSize)
+                .background { successGlow }
+                .modifier(Pop(trigger: state == .success))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+            .lineLimit(1)
+            // A new message blurs in as the old one blurs out, rather than the two crossfading on top of each other.
+            .id(title)
+            .transition(.blurReplace)
+            Spacer(minLength: 8)
+            Image(systemName: state == .success ? "lock.open.fill" : "lock.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(state == .success ? Self.green : .white.opacity(state == .failure ? 0.9 : 0.45))
+                .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
+                .frame(width: 22)
+        }
+        .padding(.leading, geometry.flare(topRadius: topRadius) / 2 + 22)
+        .padding(.trailing, geometry.flare(topRadius: topRadius) / 2 + 24)
+        .frame(width: panelWidth, height: NotchGeometry.contentRowHeight)
+        .padding(.top, geometry.style == .notch ? geometry.closedSize.height - 4 : 4)
+        .scaleEffect(state.isExpanded ? 1 : 0.6, anchor: .top)
+        .blur(radius: state.isExpanded ? 0 : 14)
+        .opacity(state.isExpanded ? 1 : 0)
+        .allowsHitTesting(false)
+    }
+
+    private static let green = Color(red: 0.188, green: 0.82, blue: 0.345)
+
+    private var title: String {
+        switch state {
+        case .success: "Welcome back, \(Self.firstName)"
+        case .failure: "Not Recognized"
+        default: "Face ID"
+        }
+    }
+
+    private var subtitle: String {
+        switch state {
+        case .success: "Unlocking…"
+        case .failure: "Hover here to try again"
+        default: "Looking for you…"
+        }
+    }
+
+    private static let firstName = NSFullUserName().split(separator: " ").first.map(String.init) ?? NSUserName()
+
+    /// A soft green light behind the tick, the way a success lights up on Apple's devices.
+    private var successGlow: some View {
+        Circle()
+            .fill(Self.green)
+            .blur(radius: 16)
+            .scaleEffect(state == .success ? 1.3 : 0.5)
+            .opacity(state == .success ? 0.45 : 0)
+            .animation(.easeOut(duration: 0.6), value: state == .success)
     }
 
     @ViewBuilder
@@ -58,13 +113,13 @@ struct NotchView: View {
         let current: NotchNotice? = if case .notice(let notice) = state { notice } else { nil }
         HStack(spacing: 0) {
             Image(systemName: current?.symbol ?? "faceid")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(current?.tint ?? .white)
                 .contentTransition(.symbolEffect(.replace))
             Spacer(minLength: geometry.style == .notch ? geometry.closedSize.width : 8)
             Text(current?.text ?? "")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.9))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.86))
                 .lineLimit(1)
                 .fixedSize()
         }
@@ -86,9 +141,9 @@ struct NotchBackground: View {
     let solidHeight: CGFloat?
 
     /// Of what's below the housing, the share that stays black before the glass begins.
-    private static let hold = 0.3
-    /// How dark the glass still is at the very bottom.
-    private static let bottomTint = 0.14
+    private static let hold = 0.34
+    /// How dark the glass still is at the very bottom: smoky, so the glyph keeps its contrast over any wallpaper.
+    private static let bottomTint = 0.42
 
     var body: some View {
         GeometryReader { proxy in
@@ -96,19 +151,19 @@ struct NotchBackground: View {
             let isGlass = solid < 1
             let fadeStart = solid + (1 - solid) * Self.hold
             ZStack {
-                Color.clear.glassEffect(.clear.tint(.black.opacity(0.12)), in: shape)
+                Color.clear.glassEffect(.clear.tint(.black.opacity(0.22)), in: shape)
                 shape.fill(
                     LinearGradient(
                         stops: [
                             .init(color: .black, location: 0),
                             .init(color: .black, location: isGlass ? fadeStart : 1),
-                            .init(color: .black.opacity(isGlass ? 0.55 : 1), location: isGlass ? fadeStart + (1 - fadeStart) * 0.45 : 1),
+                            .init(color: .black.opacity(isGlass ? 0.72 : 1), location: isGlass ? fadeStart + (1 - fadeStart) * 0.45 : 1),
                             .init(color: .black.opacity(isGlass ? Self.bottomTint : 1), location: 1),
                         ], startPoint: .top, endPoint: .bottom))
                 // A hairline of light along the glass's edge, only where it's glass: higher up it would show as a
                 // line against a dark menu bar.
                 shape.stroke(
-                    LinearGradient(colors: [.white.opacity(0.05), .white.opacity(0.3)], startPoint: .top, endPoint: .bottom),
+                    LinearGradient(colors: [.white.opacity(0.04), .white.opacity(0.22)], startPoint: .top, endPoint: .bottom),
                     lineWidth: 1
                 )
                 .mask {
@@ -135,18 +190,18 @@ private struct Breathing: ViewModifier {
     }
 }
 
-/// The macOS password field's "no" shake.
-private struct Shake: ViewModifier {
-    let trigger: Int
+/// A small, springy swell as the tick lands.
+private struct Pop: ViewModifier {
+    let trigger: Bool
 
     func body(content: Content) -> some View {
-        content.keyframeAnimator(initialValue: CGFloat(0), trigger: trigger) { view, offset in
-            view.offset(x: offset)
+        content.keyframeAnimator(initialValue: CGFloat(1), trigger: trigger) { view, scale in
+            view.scaleEffect(scale)
         } keyframes: { _ in
             KeyframeTrack {
-                for (index, offset) in [-12.0, 10, -8, 6, -3, 0].enumerated() {
-                    SpringKeyframe(offset, duration: index == 5 ? 0.12 : 0.06)
-                }
+                SpringKeyframe(1, duration: 0.12)
+                SpringKeyframe(1.08, duration: 0.18, spring: .snappy)
+                SpringKeyframe(1, duration: 0.35, spring: .bouncy)
             }
         }
     }
