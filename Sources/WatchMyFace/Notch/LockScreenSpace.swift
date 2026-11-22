@@ -1,60 +1,60 @@
 import AppKit
 import OSLog
 
-/// Puts a window on the lock screen, which no public API can.
+/// A window-server space drawn above the lock screen. A window moved into it shows on the real macOS lock screen
+/// (and, unlocked, above everything else too).
 ///
-/// The lock screen sits above every window level an app can ask for. This creates a window-server *space* at the
-/// level Notification Center uses while locked, and moves the notch window into it, through private SkyLight
-/// functions. Technique from Lakr233/SkyLightWindow (https://github.com/Lakr233/SkyLightWindow, MIT), by way of
-/// glance (https://github.com/jonnyoo/glance, MIT).
+/// macOS has no public API for this. The window server stacks whole spaces by absolute level: the setup assistant at
+/// 100, the security agent at 200, the lock screen at 300, notifications over the lock screen at 400. This creates a
+/// space at 400 through private SkyLight functions, the way WatchMyFace's sibling WatchMyMusic puts lyrics on the
+/// lock screen (and as Lakr233/SkyLightWindow, MIT, first showed).
 ///
-/// Being private, these functions can change or vanish in any macOS update. Everything is looked up at runtime and
-/// ``shared`` is `nil` when anything is missing: the notch then simply doesn't show on the lock screen, and face
-/// unlock still works. Only move a window in while the screen is actually locked.
+/// Everything is looked up at runtime. If a macOS update removes a function, ``shared`` is `nil`: the notch then
+/// just doesn't show on the lock screen, and face unlock still works.
 final class LockScreenSpace {
-    static let shared: LockScreenSpace? = LockScreenSpace()
+    static let shared = LockScreenSpace()
 
     private typealias MainConnectionID = @convention(c) () -> Int32
-    private typealias SpaceCreate = @convention(c) (Int32, Int32, Int32) -> Int32
-    private typealias SpaceSetAbsoluteLevel = @convention(c) (Int32, Int32, Int32) -> Int32
+    private typealias SpaceCreate = @convention(c) (Int32, Int32, Int32) -> UInt64
+    private typealias SpaceSetAbsoluteLevel = @convention(c) (Int32, UInt64, Int32) -> Int32
     private typealias ShowSpaces = @convention(c) (Int32, CFArray) -> Int32
-    private typealias SpaceAddWindowsAndRemoveFromSpaces = @convention(c) (Int32, Int32, CFArray, Int32) -> Int32
-    private typealias RemoveWindowsFromSpaces = @convention(c) (Int32, CFArray, CFArray) -> Int32
+    private typealias SpaceAddWindows = @convention(c) (Int32, UInt64, CFArray, Int32) -> Int32
 
-    /// Notification Center's level on the lock screen: above the lock screen's own windows.
-    private static let lockScreenLevel: Int32 = 400
+    /// Notifications over the lock screen: above its wallpaper, clock and password field.
+    private static let level: Int32 = 400
 
     private let connection: Int32
-    private let space: Int32
-    private let addWindows: SpaceAddWindowsAndRemoveFromSpaces
-    private let removeWindows: RemoveWindowsFromSpaces
+    private let space: UInt64
+    private let addWindows: SpaceAddWindows
 
     private init?() {
-        guard let skyLight = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/Versions/A/SkyLight", RTLD_NOW),
-            let mainConnectionID = dlsym(skyLight, "SLSMainConnectionID"),
-            let spaceCreate = dlsym(skyLight, "SLSSpaceCreate"),
-            let setLevel = dlsym(skyLight, "SLSSpaceSetAbsoluteLevel"),
-            let showSpaces = dlsym(skyLight, "SLSShowSpaces"),
-            let addWindows = dlsym(skyLight, "SLSSpaceAddWindowsAndRemoveFromSpaces"),
-            let removeWindows = dlsym(skyLight, "SLSRemoveWindowsFromSpaces")
+        let path = "/System/Library/PrivateFrameworks/SkyLight.framework/Versions/A/SkyLight"
+        guard let library = dlopen(path, RTLD_LAZY),
+            let mainConnectionID = Self.function("SLSMainConnectionID", in: library, as: MainConnectionID.self),
+            let spaceCreate = Self.function("SLSSpaceCreate", in: library, as: SpaceCreate.self),
+            let setLevel = Self.function("SLSSpaceSetAbsoluteLevel", in: library, as: SpaceSetAbsoluteLevel.self),
+            let showSpaces = Self.function("SLSShowSpaces", in: library, as: ShowSpaces.self),
+            let addWindows = Self.function("SLSSpaceAddWindowsAndRemoveFromSpaces", in: library, as: SpaceAddWindows.self)
         else {
-            Log.notch.notice("SkyLight isn't available; the notch won't show on the lock screen")
+            Log.notch.error("SkyLight isn't available; the notch won't show on the lock screen")
             return nil
         }
-        self.addWindows = unsafeBitCast(addWindows, to: SpaceAddWindowsAndRemoveFromSpaces.self)
-        self.removeWindows = unsafeBitCast(removeWindows, to: RemoveWindowsFromSpaces.self)
-        connection = unsafeBitCast(mainConnectionID, to: MainConnectionID.self)()
+        self.addWindows = addWindows
+        connection = mainConnectionID()
         // The 1 matters: other values make Finder draw the desktop's icons into this space.
-        space = unsafeBitCast(spaceCreate, to: SpaceCreate.self)(connection, 1, 0)
-        _ = unsafeBitCast(setLevel, to: SpaceSetAbsoluteLevel.self)(connection, space, Self.lockScreenLevel)
-        _ = unsafeBitCast(showSpaces, to: ShowSpaces.self)(connection, [space] as CFArray)
+        space = spaceCreate(connection, 1, 0)
+        _ = setLevel(connection, space, Self.level)
+        _ = showSpaces(connection, [NSNumber(value: space)] as CFArray)
+        Log.notch.info("Created the lock screen space \(self.space)")
     }
 
+    /// Moves `window` into the space. Call it before ordering the window front, every time: ordering a window out
+    /// can drop it from the space.
     func add(_ window: NSWindow) {
-        _ = addWindows(connection, space, [window.windowNumber] as CFArray, 7)
+        _ = addWindows(connection, space, [NSNumber(value: window.windowNumber)] as CFArray, 7)
     }
 
-    func remove(_ window: NSWindow) {
-        _ = removeWindows(connection, [window.windowNumber] as CFArray, [space] as CFArray)
+    private static func function<T>(_ name: String, in library: UnsafeMutableRawPointer, as type: T.Type) -> T? {
+        dlsym(library, name).map { unsafeBitCast($0, to: type) }
     }
 }

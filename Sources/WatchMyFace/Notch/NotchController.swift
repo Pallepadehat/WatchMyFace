@@ -54,7 +54,6 @@ final class NotchController {
     @ObservationIgnored var onHover: (() -> Void)?
 
     @ObservationIgnored private var window: NotchWindow?
-    @ObservationIgnored private var isOnLockScreen = false
     @ObservationIgnored private var closeTask: Task<Void, Never>?
     @ObservationIgnored private var hoverTimer: Timer?
     @ObservationIgnored private var pointerWasInside = false
@@ -116,21 +115,15 @@ final class NotchController {
     private func orderFront() {
         let window = self.window ?? makeWindow()
         position(window)
+        // Into the lock screen's space first, every time (ordering out can drop it). It stays there unlocked too,
+        // where it simply shows above everything.
+        LockScreenSpace.shared?.add(window)
         window.orderFrontRegardless()
-        if LockMonitor.isScreenLocked, let space = LockScreenSpace.shared {
-            space.add(window)
-            isOnLockScreen = true
-        }
-        Log.notch.debug("Shown\(self.isOnLockScreen ? " on the lock screen" : "", privacy: .public)")
+        Log.notch.debug("Shown\(LockMonitor.isScreenLocked ? " on the lock screen" : "", privacy: .public)")
     }
 
     private func orderOut() {
-        guard let window else { return }
-        if isOnLockScreen {
-            LockScreenSpace.shared?.remove(window)
-            isOnLockScreen = false
-        }
-        window.orderOut(nil)
+        window?.orderOut(nil)
         updateHoverTracking()
     }
 

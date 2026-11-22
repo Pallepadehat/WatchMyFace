@@ -3,8 +3,9 @@ import AppKit
 /// The borderless, see-through panel the notch is drawn in. Sits above the menu bar, full-screen apps and the
 /// screen saver, never takes focus, and lets clicks through except over the notch itself.
 final class NotchWindow: NSPanel {
-    /// The highest level Core Graphics hands out publicly, plus one.
-    private static let level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()) + 1)
+    /// The top of whatever layer it's in, so in the lock screen's space (see ``LockScreenSpace``) it sits above the
+    /// lock screen's own windows, and outside it above the menu bar and full-screen apps.
+    private static let level = NSWindow.Level(rawValue: Int(Int32.max - 1))
 
     init(size: CGSize) {
         super.init(
@@ -21,6 +22,8 @@ final class NotchWindow: NSPanel {
         // The notch's own springs do the showing and hiding; AppKit's fade on top would double it.
         animationBehavior = .none
         ignoresMouseEvents = true
+        // Allowed to draw before anyone's logged back in: the lock screen.
+        canBecomeVisibleWithoutLogin = true
     }
 
     override var canBecomeKey: Bool { false }
