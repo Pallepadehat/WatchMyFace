@@ -42,7 +42,7 @@ struct FaceMatcherTests {
     @Test func matchesTheClosestEnabledProfile() {
         let alice = FaceProfile(name: "Alice", modelIdentifier: model, samples: samples(around: [1, 0, 0, 0]))
         let bob = FaceProfile(name: "Bob", modelIdentifier: model, samples: samples(around: [0, 1, 0, 0]))
-        let matcher = FaceMatcher(sensitivity: .balanced, floor: 0.3)
+        let matcher = FaceMatcher(sensitivity: .balanced, floor: 0.5)
 
         #expect(matcher.match(FaceEmbedding([1, 0.02, 0, 0]), against: [alice, bob], modelIdentifier: model)?.profileID == alice.id)
         #expect(matcher.match(FaceEmbedding([0.01, 1, 0.02, 0]), against: [alice, bob], modelIdentifier: model)?.profileID == bob.id)
@@ -59,24 +59,38 @@ struct FaceMatcherTests {
         #expect(matcher.match(FaceEmbedding([1, 0]), against: [alice], modelIdentifier: model) == nil)
     }
 
-    @Test func theFloorAlwaysHolds() {
-        // Samples all over the place make a low baseline; the floor still keeps strangers out.
-        let scattered = FaceProfile(name: "Scattered", modelIdentifier: model, samples: samples(around: [1, 0, 0], spread: 1.5))
-        let matcher = FaceMatcher(sensitivity: .relaxed, floor: 0.8)
-        #expect(matcher.threshold(for: scattered) ?? 0 >= 0.8)
+    @Test func thresholdsSitBetweenTheFloorAndTheBaseline() {
+        let profile = FaceProfile(name: "Alice", modelIdentifier: model, samples: samples(around: [1, 0, 0]))
+        let baseline = profile.baseline ?? 0
+        for sensitivity in MatchSensitivity.allCases {
+            let threshold = FaceMatcher(sensitivity: sensitivity, floor: 0.5).threshold(for: profile) ?? 0
+            #expect(threshold > 0.5 && threshold < baseline)
+        }
     }
 
-    @Test func bothScoresMustPass() {
-        let score = FaceScore(profileID: UUID(), centroid: 0.7, bestSample: 0.99, threshold: 0.8)
+    @Test func comparesWithTheClosestSamplesNotAnAverageOfAllAngles() {
+        // Samples from two very different angles: a face at one of them is a clear match, even though the average
+        // of all the samples points somewhere in between.
+        let poses = samples(around: [1, 0, 0, 0], count: 6) + samples(around: [0, 0, 1, 0], count: 6)
+        let profile = FaceProfile(name: "Turning", modelIdentifier: model, samples: poses)
+        let score = FaceMatcher(sensitivity: .balanced, floor: 0.2).match(
+            FaceEmbedding([1, 0.03, 0, 0]), against: [profile], modelIdentifier: model)
+        #expect(score != nil)
+    }
+
+    @Test func scoresAndMargins() {
+        let score = FaceScore(profileID: UUID(), similarity: 0.7, threshold: 0.8)
         #expect(!score.passes)
         #expect(abs(score.margin + 0.1) < 0.0001)
     }
 
     @Test func sensitivityOrdersThresholds() {
-        let baseline: Float = 0.9
-        #expect(MatchSensitivity.relaxed.threshold(baseline: baseline) < MatchSensitivity.balanced.threshold(baseline: baseline))
-        #expect(MatchSensitivity.balanced.threshold(baseline: baseline) < MatchSensitivity.strict.threshold(baseline: baseline))
-        #expect(MatchSensitivity.strict.threshold(baseline: baseline) == baseline)
+        let relaxed = MatchSensitivity.relaxed.threshold(baseline: 0.95, floor: 0.7)
+        let balanced = MatchSensitivity.balanced.threshold(baseline: 0.95, floor: 0.7)
+        let strict = MatchSensitivity.strict.threshold(baseline: 0.95, floor: 0.7)
+        #expect(0.7 < relaxed && relaxed < balanced && balanced < strict && strict < 0.95)
+        // A baseline under the floor (a scan that went badly) never puts the threshold under the floor.
+        #expect(MatchSensitivity.strict.threshold(baseline: 0.5, floor: 0.7) == 0.7)
     }
 
     @Test func streakNeedsTheSameProfileInARow() {

@@ -50,6 +50,53 @@ struct EnrollmentTests {
         #expect(PoseBin(HeadPose(yaw: 0.14, pitch: 0)) == nil)
     }
 
+    /// A face whose nose is `turn` eye-widths to the image's right and `tilt` up, from a straight-ahead pose.
+    func pose(_ estimator: inout PoseEstimator, turn: Double, tilt: Double) -> HeadPose? {
+        estimator.pose(
+            leftEye: ImagePoint(x: 400, y: 500), rightEye: ImagePoint(x: 500, y: 500),
+            nose: ImagePoint(x: 450 + turn * 100, y: 440 + tilt * 100))
+    }
+
+    @Test func poseNeedsCalibrationFirst() {
+        var estimator = PoseEstimator(calibrationFrames: 3)
+        #expect(pose(&estimator, turn: 0, tilt: 0) == nil)
+        #expect(pose(&estimator, turn: 0, tilt: 0) == nil)
+        #expect(pose(&estimator, turn: 0, tilt: 0) == nil)
+        #expect(estimator.isCalibrated)
+        let straight = pose(&estimator, turn: 0, tilt: 0)
+        #expect(straight.map { $0.magnitude < 0.001 } == true)
+    }
+
+    @Test func mirroredPoseFollowsTheScreen() throws {
+        var estimator = PoseEstimator(calibrationFrames: 1)
+        _ = pose(&estimator, turn: 0, tilt: 0)
+        // Nose towards the camera image's left: the person turned to their right, which is the screen's right in
+        // the mirrored preview.
+        let turnedRight = pose(&estimator, turn: -0.2, tilt: 0)
+        let right = try #require(turnedRight)
+        #expect(right.yaw > 0.3 && abs(right.pitch) < 0.001)
+        let tiltedUp = pose(&estimator, turn: 0, tilt: 0.2)
+        let up = try #require(tiltedUp)
+        #expect(up.pitch > 0.3)
+
+        var unmirrored = PoseEstimator(mirrored: false, calibrationFrames: 1)
+        _ = pose(&unmirrored, turn: 0, tilt: 0)
+        let unmirroredTurn = pose(&unmirrored, turn: -0.2, tilt: 0)
+        #expect(try #require(unmirroredTurn).yaw < 0)
+    }
+
+    @Test func poseIgnoresDistance() throws {
+        var near = PoseEstimator(calibrationFrames: 1)
+        _ = near.pose(leftEye: ImagePoint(x: 0, y: 0), rightEye: ImagePoint(x: 200, y: 0), nose: ImagePoint(x: 100, y: -120))
+        let nearPose = near.pose(leftEye: ImagePoint(x: 0, y: 0), rightEye: ImagePoint(x: 200, y: 0), nose: ImagePoint(x: 60, y: -120))
+        let nearTurn = try #require(nearPose)
+        var far = PoseEstimator(calibrationFrames: 1)
+        _ = far.pose(leftEye: ImagePoint(x: 0, y: 0), rightEye: ImagePoint(x: 50, y: 0), nose: ImagePoint(x: 25, y: -30))
+        let farPose = far.pose(leftEye: ImagePoint(x: 0, y: 0), rightEye: ImagePoint(x: 50, y: 0), nose: ImagePoint(x: 15, y: -30))
+        let farTurn = try #require(farPose)
+        #expect(abs(nearTurn.yaw - farTurn.yaw) < 0.0001)
+    }
+
     @Test func blinkIsADipAndARecovery() {
         var detector = BlinkDetector()
         let results = [Double](repeating: 0.3, count: 10) + [0.1, 0.08, 0.29]
