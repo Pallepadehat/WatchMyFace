@@ -1,5 +1,6 @@
 import FaceKit
 import Foundation
+import OSLog
 
 /// How a scan ended.
 enum ScanResult {
@@ -129,6 +130,13 @@ nonisolated private final class ScanSession: @unchecked Sendable {
 
     func finishWithTimeout() {
         let result: ScanResult = lock.withLock { sawFace ? .noMatch(closest: closest) : .noFace }
+        if case .noMatch(let closest?) = result {
+            Log.recognition.info(
+                "No match: closest \(closest.similarity, format: .fixed(precision: 3)), needed \(closest.threshold, format: .fixed(precision: 3))"
+            )
+        } else {
+            Log.recognition.info("No face seen")
+        }
         finish(result)
     }
 

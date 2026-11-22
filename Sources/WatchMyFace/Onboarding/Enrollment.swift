@@ -37,11 +37,15 @@ final class Enrollment {
     @ObservationIgnored private let camera: CameraSession
     @ObservationIgnored private let recognizer: FaceRecognizer
     @ObservationIgnored private var samples: [PoseBin: [FaceEmbedding]] = [:]
+    @ObservationIgnored private var poses = PoseEstimator()
     @ObservationIgnored private let reader = FrameGate()
 
-    /// Samples kept per direction: enough for variety, few enough to stay quick to match against.
-    private static let samplesPerBin = 3
-    private static let minimumFrontSamples = 2
+    /// Samples kept per direction: most from straight ahead, how you'll usually look at the Mac, and a few from
+    /// every angle. Enough for variety, few enough to stay quick to match against.
+    private static func samplesWanted(in bin: PoseBin) -> Int { bin == .front ? 8 : 3 }
+    private static let minimumFrontSamples = 4
+    /// Closer than the least a scan accepts, so the samples are sharp.
+    private static let minimumProminence = FaceAnalyzer.minimumProminence * 1.3
 
     init(camera: CameraSession, recognizer: FaceRecognizer) {
         self.camera = camera
@@ -77,6 +81,7 @@ final class Enrollment {
 
     func reset() {
         coverage.reset()
+        poses.reset()
         samples = [:]
         guidance = .starting
         error = nil
@@ -93,13 +98,19 @@ final class Enrollment {
             guidance = .noFace
             return
         }
-        guard reading.face.prominence >= FaceAnalyzer.minimumProminence * 1.4 else {
+        guard reading.face.prominence >= Self.minimumProminence else {
             guidance = .tooFar
             return
         }
-        coverage.record(reading.face.pose)
-        if let embedding = reading.embedding, let bin = PoseBin(reading.face.pose),
-            samples[bin, default: []].count < Self.samplesPerBin
+        guard let landmarks = reading.face.landmarks else { return }
+        // The first frames teach the estimator what straight ahead is; it says nothing until then.
+        guard let pose = poses.pose(leftEye: landmarks.leftEye, rightEye: landmarks.rightEye, nose: landmarks.nose) else {
+            guidance = .moveHead
+            return
+        }
+        coverage.record(pose)
+        if let embedding = reading.embedding, let bin = PoseBin(pose),
+            samples[bin, default: []].count < Self.samplesWanted(in: bin)
         {
             samples[bin, default: []].append(embedding)
         }
