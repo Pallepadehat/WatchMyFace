@@ -23,20 +23,21 @@ struct NotchGeometry: Equatable {
     /// The panel's body while scanning: room for the Face ID glyph under the housing.
     var expandedSize: CGSize {
         switch style {
-        case .notch: CGSize(width: max(closedSize.width + 24, 214), height: closedSize.height + 136)
-        case .island: CGSize(width: 168, height: 168)
+        case .notch: CGSize(width: max(closedSize.width + 40, 228), height: closedSize.height + 112)
+        case .island: CGSize(width: 150, height: 150)
         }
     }
 
     /// Where the glyph sits in the expanded panel: centered in what's below the housing.
     var glyphCenterY: CGFloat {
         switch style {
-        case .notch: closedSize.height + (expandedSize.height - closedSize.height) / 2 - 4
+        case .notch: closedSize.height + (expandedSize.height - closedSize.height) / 2 - 2
         case .island: expandedSize.height / 2
         }
     }
 
-    static let glyphSize: CGFloat = 76
+    /// The ring's diameter.
+    static let glyphSize: CGFloat = 62
 
     // MARK: Compact (notices: "Touch ID to turn on", "Try again")
 

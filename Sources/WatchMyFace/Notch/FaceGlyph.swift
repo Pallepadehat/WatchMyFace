@@ -19,6 +19,10 @@ struct FaceGlyph: NSViewRepresentable {
 
     let phase: Phase
 
+    /// The view's size for a ring one point across: the animation's canvas is a lot bigger than its ring, so a
+    /// ring `d` across needs a view this many `d`s wide and high.
+    static let frameToRing = CGSize(width: 3.05, height: 2.56)
+
     enum Frames {
         static let scanStart: AnimationFrameTime = 15
         static let scanSettled: AnimationFrameTime = 66
@@ -33,6 +37,10 @@ struct FaceGlyph: NSViewRepresentable {
     func makeNSView(context: Context) -> LottieAnimationView {
         let view = LottieAnimationView(animation: Self.animation)
         view.contentMode = .scaleAspectFit
+        view.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        view.setContentHuggingPriority(.defaultLow, for: .vertical)
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        view.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
         view.loopMode = .playOnce
         view.setValueProvider(FloatValueProvider(0), keypath: AnimationKeypath(keypath: "Face BG.Transform.Opacity"))
         view.currentFrame = Frames.scanStart
@@ -42,6 +50,11 @@ struct FaceGlyph: NSViewRepresentable {
 
     func updateNSView(_ view: LottieAnimationView, context: Context) {
         context.coordinator.apply(phase, to: view)
+    }
+
+    /// Whatever size SwiftUI offers. Left to itself, the view asks for the animation's full 440 × 370 canvas.
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: LottieAnimationView, context: Context) -> CGSize? {
+        proposal.replacingUnspecifiedDimensions(by: CGSize(width: 440, height: 370))
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }

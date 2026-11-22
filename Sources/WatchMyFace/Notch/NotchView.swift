@@ -44,7 +44,7 @@ struct NotchView: View {
     /// same way as it closes, rather than being cut off by the shrinking shape.
     private var glyph: some View {
         FaceGlyph(phase: state.glyphPhase)
-            .frame(width: NotchGeometry.glyphSize * 2.6, height: NotchGeometry.glyphSize * 2.2)
+            .frame(width: NotchGeometry.glyphSize * FaceGlyph.frameToRing.width, height: NotchGeometry.glyphSize * FaceGlyph.frameToRing.height)
             .scaleEffect(state.isExpanded ? 1 : 0.35)
             .blur(radius: state.isExpanded ? 0 : 16)
             .opacity(state.isExpanded ? 1 : 0)
@@ -89,19 +89,23 @@ struct NotchBackground: View {
         GeometryReader { proxy in
             let solid = solidHeight.map { min(1, $0 / max(proxy.size.height, 1)) } ?? 1
             ZStack {
-                Color.clear.glassEffect(.regular.tint(.black.opacity(0.5)), in: shape)
+                Color.clear.glassEffect(.regular.tint(.black.opacity(0.28)), in: shape)
                 shape.fill(
                     LinearGradient(
                         stops: [
                             .init(color: .black, location: 0),
                             .init(color: .black, location: solid),
-                            .init(color: .black.opacity(solid < 1 ? 0.55 : 1), location: 1),
+                            .init(color: .black.opacity(solid < 1 ? 0.3 : 1), location: 1),
                         ], startPoint: .top, endPoint: .bottom))
-                // A hairline of light along the glass edge, fading in from the black top.
-                shape.stroke(
-                    LinearGradient(
-                        colors: [.white.opacity(0), .white.opacity(solid < 1 ? 0.16 : 0)], startPoint: .top, endPoint: .bottom),
-                    lineWidth: 1)
+                // A hairline of light along the glass edge, only where it's glass: it would show as a line against a
+                // dark menu bar higher up.
+                shape.stroke(.white.opacity(0.14), lineWidth: 1)
+                    .mask {
+                        LinearGradient(
+                            stops: [.init(color: .clear, location: solid), .init(color: .white, location: min(1, solid + 0.35))],
+                            startPoint: .top, endPoint: .bottom)
+                    }
+                    .opacity(solid < 1 ? 1 : 0)
             }
         }
     }

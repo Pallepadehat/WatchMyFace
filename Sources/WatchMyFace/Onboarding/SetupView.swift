@@ -34,8 +34,8 @@ private struct WelcomeStep: View {
     var body: some View {
         VStack(spacing: 18) {
             FaceGlyph(phase: .success)
-                .frame(width: 200, height: 170)
-                .padding(.bottom, -36)
+                .frame(width: 96 * FaceGlyph.frameToRing.width, height: 96 * FaceGlyph.frameToRing.height)
+                .frame(height: 110)
             Text("Unlock your Mac with a glance").font(.system(size: 28, weight: .bold))
             Text("When your Mac wakes up locked, WatchMyFace looks for you in the notch and unlocks it when it's you. Everything happens on this Mac.")
                 .multilineTextAlignment(.center)
