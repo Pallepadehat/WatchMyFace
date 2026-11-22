@@ -53,18 +53,20 @@ struct NotchGeometry: Equatable {
 
     // MARK: Corners
 
-    /// The top radius is also how far the inverted corners flare out into the menu bar.
+    /// The top radius is also how far the inverted corners flare out into the menu bar. Kept small, like the real
+    /// housing's: a MacBook's notch is nearly square, with just a hint of a curve where it meets the screen edge.
     func topRadius(expanded: Bool) -> CGFloat {
         switch style {
-        case .notch: expanded ? 18 : 8
-        case .island: expanded ? 46 : closedSize.height / 2
+        case .notch: expanded ? 9 : 6
+        case .island: expanded ? 34 : closedSize.height / 2
         }
     }
 
+    /// Tight, continuous corners at the bottom, again like the housing, growing only a little as it opens.
     func bottomRadius(for size: CGSize, expanded: Bool) -> CGFloat {
         switch style {
-        case .notch: expanded ? 46 : min(14, size.height / 2)
-        case .island: expanded ? 46 : size.height / 2
+        case .notch: expanded ? 26 : min(11, size.height / 2)
+        case .island: expanded ? 34 : size.height / 2
         }
     }
 
@@ -84,7 +86,7 @@ struct NotchGeometry: Equatable {
     /// state plus room for the shadow, and SwiftUI animates inside it.
     var windowSize: CGSize {
         let body = CGSize(
-            width: max(expandedSize.width + flare(topRadius: topRadius(expanded: true)), compactSize.width + flare(topRadius: 8)),
+            width: max(expandedSize.width + flare(topRadius: topRadius(expanded: true)), compactSize.width + flare(topRadius: 6)),
             height: max(expandedSize.height, compactSize.height))
         return CGSize(width: body.width + 2 * Self.shadowRoom, height: body.height + Self.shadowRoom + Self.islandTopGap)
     }
