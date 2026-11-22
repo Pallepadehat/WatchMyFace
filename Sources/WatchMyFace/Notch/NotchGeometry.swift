@@ -1,0 +1,119 @@
+import AppKit
+import SwiftUI
+
+/// Which silhouette the panel has on a screen.
+nonisolated enum NotchStyle: Equatable {
+    /// Grows out of the camera housing, with the housing's inverted top corners.
+    case notch
+    /// A floating island just under the top edge, for screens without a notch.
+    case island
+}
+
+/// The sizes the notch panel moves between. Pure numbers; ``NotchWindowController`` decides where they go.
+///
+/// The silhouette and the idea of sizing everything from the real housing come from glance
+/// (https://github.com/jonnyoo/glance, MIT).
+struct NotchGeometry: Equatable {
+    /// The camera housing's size on this screen, or the island's resting size without one.
+    let closedSize: CGSize
+    let style: NotchStyle
+
+    // MARK: Expanded (scanning, success, failure)
+
+    /// The panel's body while scanning: room for the Face ID glyph under the housing.
+    var expandedSize: CGSize {
+        switch style {
+        case .notch: CGSize(width: max(closedSize.width + 24, 214), height: closedSize.height + 136)
+        case .island: CGSize(width: 168, height: 168)
+        }
+    }
+
+    /// Where the glyph sits in the expanded panel: centered in what's below the housing.
+    var glyphCenterY: CGFloat {
+        switch style {
+        case .notch: closedSize.height + (expandedSize.height - closedSize.height) / 2 - 4
+        case .island: expandedSize.height / 2
+        }
+    }
+
+    static let glyphSize: CGFloat = 76
+
+    // MARK: Compact (notices: "Touch ID to turn on", "Try again")
+
+    /// Wider than the housing, a little taller, with an icon on the left and a word or two on the right.
+    var compactSize: CGSize {
+        switch style {
+        case .notch: CGSize(width: closedSize.width + 2 * Self.compactFlank, height: closedSize.height + 6)
+        case .island: CGSize(width: 210, height: 38)
+        }
+    }
+
+    static let compactFlank: CGFloat = 92
+
+    // MARK: Corners
+
+    /// The top radius is also how far the inverted corners flare out into the menu bar.
+    func topRadius(expanded: Bool) -> CGFloat {
+        switch style {
+        case .notch: expanded ? 18 : 8
+        case .island: expanded ? 46 : closedSize.height / 2
+        }
+    }
+
+    func bottomRadius(for size: CGSize, expanded: Bool) -> CGFloat {
+        switch style {
+        case .notch: expanded ? 46 : min(14, size.height / 2)
+        case .island: expanded ? 46 : size.height / 2
+        }
+    }
+
+    /// Extra width the flare adds outside the body, in notch style.
+    func flare(topRadius: CGFloat) -> CGFloat {
+        style == .notch ? topRadius * 2 : 0
+    }
+
+    // MARK: Island placement
+
+    /// The island floats this far below the top of the screen.
+    static let islandTopGap: CGFloat = 6
+
+    // MARK: Window
+
+    /// The window never changes size (resizing a window mid-animation stutters); it's big enough for the largest
+    /// state plus room for the shadow, and SwiftUI animates inside it.
+    var windowSize: CGSize {
+        let body = CGSize(
+            width: max(expandedSize.width + flare(topRadius: topRadius(expanded: true)), compactSize.width + flare(topRadius: 8)),
+            height: max(expandedSize.height, compactSize.height))
+        return CGSize(width: body.width + 2 * Self.shadowRoom, height: body.height + Self.shadowRoom + Self.islandTopGap)
+    }
+
+    static let shadowRoom: CGFloat = 30
+
+    // MARK: Springs
+
+    /// Opening overshoots a touch, like the Dynamic Island; closing settles without bouncing.
+    static let openSpring = Animation.spring(response: 0.42, dampingFraction: 0.72)
+    static let closeSpring = Animation.spring(response: 0.38, dampingFraction: 1)
+    /// How long closing takes to look finished, before the window goes away.
+    static let closeDuration: Duration = .milliseconds(420)
+
+    // MARK: Screens
+
+    static func forScreen(_ screen: NSScreen) -> NotchGeometry {
+        guard screen.safeAreaInsets.top > 0,
+            let left = screen.auxiliaryTopLeftArea?.width, let right = screen.auxiliaryTopRightArea?.width
+        else {
+            return NotchGeometry(closedSize: CGSize(width: 92, height: 26), style: .island)
+        }
+        // The housing is what the menu bar areas either side of it leave over.
+        return NotchGeometry(
+            closedSize: CGSize(width: screen.frame.width - left - right, height: screen.safeAreaInsets.top), style: .notch)
+    }
+
+    /// The built-in display if it has a notch, else the main screen.
+    @MainActor
+    static func preferredScreen() -> NSScreen? {
+        NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main ?? NSScreen.screens.first
+    }
+}
