@@ -76,36 +76,47 @@ struct NotchView: View {
     }
 }
 
-/// The notch's surface. Like the Now Playing panel on macOS 26: solid black where it meets the camera housing (so
-/// the housing disappears into it), shading into dark Liquid Glass further down, where you can just make out the
-/// wallpaper through it.
+/// The notch's surface, like the Now Playing panel in macOS 26's notch: solid black where it meets the camera
+/// housing (so the housing disappears into it), holding black a little further, then melting into clear Liquid Glass
+/// at the bottom, where the wallpaper shows through, bent by the glass's edge.
 struct NotchBackground: View {
     let shape: NotchShape
-    /// How far down it stays solid black; `nil` keeps it black all the way (the closed and compact states, which
+    /// How far down it's the housing's black; `nil` keeps it black all the way (the closed and compact states, which
     /// are mostly housing).
     let solidHeight: CGFloat?
+
+    /// Of what's below the housing, the share that stays black before the glass begins.
+    private static let hold = 0.3
+    /// How dark the glass still is at the very bottom.
+    private static let bottomTint = 0.14
 
     var body: some View {
         GeometryReader { proxy in
             let solid = solidHeight.map { min(1, $0 / max(proxy.size.height, 1)) } ?? 1
+            let isGlass = solid < 1
+            let fadeStart = solid + (1 - solid) * Self.hold
             ZStack {
-                Color.clear.glassEffect(.regular.tint(.black.opacity(0.28)), in: shape)
+                Color.clear.glassEffect(.clear.tint(.black.opacity(0.12)), in: shape)
                 shape.fill(
                     LinearGradient(
                         stops: [
                             .init(color: .black, location: 0),
-                            .init(color: .black, location: solid),
-                            .init(color: .black.opacity(solid < 1 ? 0.3 : 1), location: 1),
+                            .init(color: .black, location: isGlass ? fadeStart : 1),
+                            .init(color: .black.opacity(isGlass ? 0.55 : 1), location: isGlass ? fadeStart + (1 - fadeStart) * 0.45 : 1),
+                            .init(color: .black.opacity(isGlass ? Self.bottomTint : 1), location: 1),
                         ], startPoint: .top, endPoint: .bottom))
-                // A hairline of light along the glass edge, only where it's glass: it would show as a line against a
-                // dark menu bar higher up.
-                shape.stroke(.white.opacity(0.14), lineWidth: 1)
-                    .mask {
-                        LinearGradient(
-                            stops: [.init(color: .clear, location: solid), .init(color: .white, location: min(1, solid + 0.35))],
-                            startPoint: .top, endPoint: .bottom)
-                    }
-                    .opacity(solid < 1 ? 1 : 0)
+                // A hairline of light along the glass's edge, only where it's glass: higher up it would show as a
+                // line against a dark menu bar.
+                shape.stroke(
+                    LinearGradient(colors: [.white.opacity(0.05), .white.opacity(0.3)], startPoint: .top, endPoint: .bottom),
+                    lineWidth: 1
+                )
+                .mask {
+                    LinearGradient(
+                        stops: [.init(color: .clear, location: fadeStart), .init(color: .white, location: 1)],
+                        startPoint: .top, endPoint: .bottom)
+                }
+                .opacity(isGlass ? 1 : 0)
             }
         }
     }
