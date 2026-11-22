@@ -3,35 +3,35 @@ import Foundation
 /// How alike a face seen by the camera is to one profile.
 public struct FaceScore: Equatable, Sendable {
     public let profileID: UUID
-    /// Similarity to the profile's centroid.
-    public let centroid: Float
-    /// Similarity to the profile's closest single sample.
-    public let bestSample: Float
-    /// What both have to reach, for this profile.
+    /// The average similarity to the profile's closest samples (``FaceMatcher/neighbors`` of them): the ones taken
+    /// at about the same angle, rather than an average over every angle.
+    public let similarity: Float
+    /// What it has to reach, for this profile.
     public let threshold: Float
 
-    public init(profileID: UUID, centroid: Float, bestSample: Float, threshold: Float) {
+    public init(profileID: UUID, similarity: Float, threshold: Float) {
         self.profileID = profileID
-        self.centroid = centroid
-        self.bestSample = bestSample
+        self.similarity = similarity
         self.threshold = threshold
     }
 
-    /// Both have to clear the bar: the centroid alone lets a lookalike in on an average, the best sample alone lets
-    /// one lucky frame in.
-    public var passes: Bool { centroid >= threshold && bestSample >= threshold }
+    public var passes: Bool { similarity >= threshold }
 
-    /// How far the weaker of the two scores is over (or, negative, under) the threshold.
-    public var margin: Float { min(centroid, bestSample) - threshold }
+    /// How far over (or, negative, under) the threshold it is.
+    public var margin: Float { similarity - threshold }
 }
 
 /// Compares what the camera sees with the enrolled profiles.
 ///
-/// Each profile gets its own threshold, from how alike its enrollment samples were (``FaceProfile/baseline``) and
-/// the chosen ``MatchSensitivity``, never lower than ``floor``.
+/// Each profile gets its own threshold, somewhere between ``floor`` (how alike the embedder finds two different
+/// people) and the profile's ``FaceProfile/baseline`` (how alike its own samples are), depending on the
+/// ``MatchSensitivity``.
 public struct FaceMatcher: Sendable {
+    /// Averaging over a couple of the closest samples, not just the closest, keeps one odd sample from deciding.
+    public static let neighbors = 2
+
     public var sensitivity: MatchSensitivity
-    /// The least similarity that can ever count as a match, whatever the profile. Depends on the embedder.
+    /// About how alike the embedder finds faces of two different people. Nothing at or under it ever matches.
     public var floor: Float
 
     public init(sensitivity: MatchSensitivity, floor: Float) {
@@ -41,7 +41,7 @@ public struct FaceMatcher: Sendable {
 
     public func threshold(for profile: FaceProfile) -> Float? {
         guard let baseline = profile.baseline else { return nil }
-        return max(floor, sensitivity.threshold(baseline: baseline))
+        return sensitivity.threshold(baseline: baseline, floor: floor)
     }
 
     /// Every enabled, compatible profile's score, best first by how far it clears its own threshold.
@@ -51,10 +51,9 @@ public struct FaceMatcher: Sendable {
         profiles
             .filter { $0.isEnabled && $0.isCompatible(with: modelIdentifier) }
             .compactMap { profile -> FaceScore? in
-                guard let centroid = profile.centroid, let threshold = threshold(for: profile) else { return nil }
-                let best = profile.samples.map { $0.similarity(to: embedding) }.max() ?? -1
-                return FaceScore(
-                    profileID: profile.id, centroid: centroid.similarity(to: embedding), bestSample: best, threshold: threshold)
+                guard let threshold = threshold(for: profile) else { return nil }
+                let similarity = Self.nearest(embedding, in: profile.samples)
+                return FaceScore(profileID: profile.id, similarity: similarity, threshold: threshold)
             }
             .sorted { $0.margin > $1.margin }
     }
@@ -65,6 +64,13 @@ public struct FaceMatcher: Sendable {
     {
         scores(for: embedding, against: profiles, modelIdentifier: modelIdentifier).first { $0.passes }
     }
+
+    /// The average similarity of `embedding` to its ``neighbors`` closest `samples`.
+    static func nearest(_ embedding: FaceEmbedding, in samples: [FaceEmbedding]) -> Float {
+        let closest = samples.map { $0.similarity(to: embedding) }.sorted(by: >).prefix(neighbors)
+        guard !closest.isEmpty else { return -1 }
+        return closest.reduce(0, +) / Float(closest.count)
+    }
 }
 
 /// How strict matching is, as people think of it rather than as a number.
@@ -72,18 +78,20 @@ public enum MatchSensitivity: String, CaseIterable, Codable, Sendable {
     /// Unlocks more readily, in poor light or at an angle. Lets lookalikes in more readily too.
     case relaxed
     case balanced
-    /// Needs a face about as alike as the enrollment's own samples were.
+    /// Needs a face nearly as alike as the enrollment's own samples were to each other.
     case strict
 
-    /// The threshold for a profile whose samples were `baseline` alike: some share of the way from there down
-    /// towards zero similarity, measured in the room between the baseline and a perfect match.
-    public func threshold(baseline: Float) -> Float {
-        let room = 1 - baseline
+    /// How far from the stranger level (`floor`) towards the profile's own `baseline` the threshold sits. Never at
+    /// the baseline itself: enrollment frames are taken seconds apart in the same light, so they're more alike than
+    /// you'll ever be to them in other light later.
+    public func threshold(baseline: Float, floor: Float) -> Float {
+        let share: Float
         switch self {
-        case .relaxed: return baseline - room * 0.6
-        case .balanced: return baseline - room * 0.3
-        case .strict: return baseline
+        case .relaxed: share = 0.4
+        case .balanced: share = 0.55
+        case .strict: share = 0.7
         }
+        return floor + max(0, baseline - floor) * share
     }
 }
 
