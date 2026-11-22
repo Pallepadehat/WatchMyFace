@@ -26,39 +26,57 @@ struct FaceMatcherTests {
         #expect(abs(centroid.values[0] - centroid.values[1]) < 0.0001)
     }
 
-    @Test func matchesTheClosestEnabledProfile() {
-        let alice = FaceProfile(name: "Alice", modelIdentifier: model, samples: [FaceEmbedding([1, 0, 0]), FaceEmbedding([0.9, 0.1, 0])])
-        let bob = FaceProfile(name: "Bob", modelIdentifier: model, samples: [FaceEmbedding([0, 1, 0])])
-        let matcher = FaceMatcher(threshold: 0.8)
+    /// Samples scattered a little around `direction`, like enrollment frames of one person.
+    func samples(around direction: [Float], spread: Float = 0.05, count: Int = 8) -> [FaceEmbedding] {
+        (0..<count).map { index in
+            FaceEmbedding(direction.enumerated().map { axis, value in value + spread * sin(Float(index * 7 + axis * 3)) })
+        }
+    }
 
-        #expect(matcher.match(FaceEmbedding([0.95, 0.05, 0]), against: [alice, bob], modelIdentifier: model)?.profileID == alice.id)
-        #expect(matcher.match(FaceEmbedding([0, 0.98, 0.1]), against: [alice, bob], modelIdentifier: model)?.profileID == bob.id)
-        #expect(matcher.match(FaceEmbedding([0, 0, 1]), against: [alice, bob], modelIdentifier: model) == nil)
+    @Test func baselineNeedsAFewSamples() {
+        #expect(FaceProfile(name: "One", modelIdentifier: model, samples: [FaceEmbedding([1, 0])]).baseline == nil)
+        let profile = FaceProfile(name: "Many", modelIdentifier: model, samples: samples(around: [1, 0, 0, 0]))
+        #expect((profile.baseline ?? 0) > 0.9)
+    }
+
+    @Test func matchesTheClosestEnabledProfile() {
+        let alice = FaceProfile(name: "Alice", modelIdentifier: model, samples: samples(around: [1, 0, 0, 0]))
+        let bob = FaceProfile(name: "Bob", modelIdentifier: model, samples: samples(around: [0, 1, 0, 0]))
+        let matcher = FaceMatcher(sensitivity: .balanced, floor: 0.3)
+
+        #expect(matcher.match(FaceEmbedding([1, 0.02, 0, 0]), against: [alice, bob], modelIdentifier: model)?.profileID == alice.id)
+        #expect(matcher.match(FaceEmbedding([0.01, 1, 0.02, 0]), against: [alice, bob], modelIdentifier: model)?.profileID == bob.id)
+        #expect(matcher.match(FaceEmbedding([0, 0, 1, 0]), against: [alice, bob], modelIdentifier: model) == nil)
+        // Halfway between the two is neither.
+        #expect(matcher.match(FaceEmbedding([1, 1, 0, 0]), against: [alice, bob], modelIdentifier: model) == nil)
     }
 
     @Test func ignoresDisabledProfilesAndOtherModels() {
-        var alice = FaceProfile(name: "Alice", modelIdentifier: model, samples: [FaceEmbedding([1, 0])])
-        let matcher = FaceMatcher(threshold: 0.5)
+        var alice = FaceProfile(name: "Alice", modelIdentifier: model, samples: samples(around: [1, 0]))
+        let matcher = FaceMatcher(sensitivity: .relaxed, floor: 0)
         #expect(matcher.match(FaceEmbedding([1, 0]), against: [alice], modelIdentifier: "another-model") == nil)
         alice.isEnabled = false
         #expect(matcher.match(FaceEmbedding([1, 0]), against: [alice], modelIdentifier: model) == nil)
     }
 
+    @Test func theFloorAlwaysHolds() {
+        // Samples all over the place make a low baseline; the floor still keeps strangers out.
+        let scattered = FaceProfile(name: "Scattered", modelIdentifier: model, samples: samples(around: [1, 0, 0], spread: 1.5))
+        let matcher = FaceMatcher(sensitivity: .relaxed, floor: 0.8)
+        #expect(matcher.threshold(for: scattered) ?? 0 >= 0.8)
+    }
+
     @Test func bothScoresMustPass() {
-        // One sample right on, the rest far off: the best sample passes, the centroid doesn't.
-        let lopsided = FaceProfile(
-            name: "Lopsided", modelIdentifier: model,
-            samples: [FaceEmbedding([1, 0, 0]), FaceEmbedding([0, 1, 0]), FaceEmbedding([0, 0, 1]), FaceEmbedding([0, -1, 0])])
-        let score = FaceMatcher(threshold: 0.9).scores(for: FaceEmbedding([1, 0, 0]), against: [lopsided], modelIdentifier: model)
-        #expect(score.first?.bestSample ?? 0 > 0.99)
-        #expect(score.first?.passes(threshold: 0.9) == false)
+        let score = FaceScore(profileID: UUID(), centroid: 0.7, bestSample: 0.99, threshold: 0.8)
+        #expect(!score.passes)
+        #expect(abs(score.margin + 0.1) < 0.0001)
     }
 
     @Test func sensitivityOrdersThresholds() {
-        let baseline: Float = 0.6
+        let baseline: Float = 0.9
         #expect(MatchSensitivity.relaxed.threshold(baseline: baseline) < MatchSensitivity.balanced.threshold(baseline: baseline))
         #expect(MatchSensitivity.balanced.threshold(baseline: baseline) < MatchSensitivity.strict.threshold(baseline: baseline))
-        #expect(MatchSensitivity.strict.threshold(baseline: baseline) < 1)
+        #expect(MatchSensitivity.strict.threshold(baseline: baseline) == baseline)
     }
 
     @Test func streakNeedsTheSameProfileInARow() {
