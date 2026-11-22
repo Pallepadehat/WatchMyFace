@@ -1,0 +1,28 @@
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcuserstate
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store
+
+# Personal signing settings (see Config/Local.xcconfig.example)
+Config/Local.xcconfig
+
+# Build output (scripts/build.sh, scripts/make-dmg.sh, scripts/release.sh)
+build/
+
+# A backed-up Sparkle private key must never be committed (see .github/CONTRIBUTING.md, "Making a release")
+*sparkle-key*.txt
+
+# An optional face-embedding model converted locally (see tools/README.md). It's yours to add, not ours to ship.
+Models/*.mlpackage
+Models/*.mlmodelc
+tools/.venv/
+
+# Agent worktrees
+.claude/worktrees/
