@@ -20,7 +20,7 @@ jobs:
     name: Lint
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Check formatting
         run: swift format lint --strict -r Sources Packages/FaceKit scripts
       # Xcode sometimes marks source folders "opaque" when the project is opened, which turns the Swift files into
@@ -36,7 +36,7 @@ jobs:
     name: FaceKit tests
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Run tests
         working-directory: Packages/FaceKit
         run: swift test
@@ -45,7 +45,7 @@ jobs:
     name: Build app
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
