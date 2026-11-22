@@ -50,10 +50,13 @@ nonisolated enum FaceEmbedders {
 /// thing". It isn't trained on faces in particular, so it tells people apart by a smaller margin than a face model
 /// does; profile calibration (``FaceProfile/baseline``) is what makes it usable.
 nonisolated struct FeaturePrintEmbedder: FaceEmbedder {
-    let modelIdentifier = "vision-featureprint-v2"
+    /// v3: crops aligned on the eyes, tight and grey (see ``FaceCropper``). Profiles from earlier crops ask for a rescan.
+    let modelIdentifier = "vision-featureprint-v3"
     let displayName = "Apple Vision feature print"
     let inputSize = 224
-    let similarityFloor: Float = 0.6
+    /// About where two different people's tight grey face crops land. Thresholds sit between this and how alike a
+    /// profile's own samples are.
+    let similarityFloor: Float = 0.7
 
     func embedding(for face: CGImage) throws -> FaceEmbedding {
         let request = VNGenerateImageFeaturePrintRequest()

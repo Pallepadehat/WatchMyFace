@@ -151,7 +151,8 @@ final class UnlockCoordinator {
                 return
             }
             notch.show(.success)
-            Log.unlock.info("Matched (margin \(score.margin, format: .fixed(precision: 3)))")
+            Log.unlock.info(
+                "Matched: \(score.similarity, format: .fixed(precision: 3)), needed \(score.threshold, format: .fixed(precision: 3))")
             // Long enough to see the tick, then in.
             try? await Task.sleep(for: .milliseconds(650))
             do {
