@@ -17,8 +17,8 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/notch-scanning.png" width="380" alt="The notch, opened below the camera, with green rings spinning as it looks for a face">
-  <img src="docs/images/notch-success.png" width="380" alt="The notch showing a green ring with a tick: recognized">
+  <img src="docs/images/notch-scanning.png" width="380" alt="The notch, opened below the camera: the Face ID glyph spinning beside Face ID, Looking for you">
+  <img src="docs/images/notch-success.png" width="380" alt="The notch showing a green tick and an open padlock: Welcome back">
 </p>
 
 > [!WARNING]
@@ -30,8 +30,9 @@
 ## Features
 
 **Lives in the notch.** The panel grows out of the camera housing with Dynamic Island–style springs: solid black where
-it meets the housing, melting into clear Liquid Glass below. It plays a Face ID–style animation while it looks, folds
-into a tick when it's you, and shakes red when it isn't. Hover over the notch to try again. On Macs without a notch, it
+it meets the housing, melting into clear Liquid Glass below. The Face ID glyph bends into a spinning ring while it
+looks, closes into a green tick and opens the padlock when it's you ("Welcome back"), and shakes its head when it isn't.
+Hover over the notch to try again. On Macs without a notch, it
 floats as an island at the top of the screen.
 
 **Works on the lock screen.** Wake your Mac (open the lid, press a key) and it starts looking. It shows on the real lock
@@ -114,8 +115,7 @@ Pull requests are very welcome, into `develop`. Start with [CONTRIBUTING.md](.gi
 - [glance](https://github.com/jonnyoo/glance) by Jonathan Zhou (MIT): the idea of face unlock in the notch, the notch's
   silhouette and springs, and the lock screen keystrokes.
 - [SkyLightWindow](https://github.com/Lakr233/SkyLightWindow) by Lakr233 (MIT): drawing a window on the lock screen.
-- [Lottie](https://github.com/airbnb/lottie-ios) by Airbnb, which plays the Face Unlock animation, and
-  [Sparkle](https://sparkle-project.org) for updates.
+- [Sparkle](https://sparkle-project.org), for updates.
 
 ## License
 

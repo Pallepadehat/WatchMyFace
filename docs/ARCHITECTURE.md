@@ -59,8 +59,13 @@ below the embedder's floor. Both the profile's centroid and its closest sample m
 `NotchWindow` is created once, sized for the biggest state, and never resized: SwiftUI animates the shape inside it,
 which is what keeps the springs smooth. `NotchShape` is a body with continuous bottom corners and small inverted top
 corners, like the real housing. `NotchBackground` is solid black down to the housing's height, then fades into clear
-Liquid Glass (`glassEffect(.clear)`). `FaceGlyph` plays segments of `Resources/FaceUnlock.json` with Lottie: frames
-15–66 for scanning, 66–118 for the tick, frame 66 tinted red for a miss. The animation's own notch layer is hidden.
+Liquid Glass (`glassEffect(.clear)`). Below the housing sits a row like the Now Playing panel's: the Face ID glyph, a
+title and subtitle, and a padlock that springs open on success.
+
+`FaceIDGlyph` is drawn in SwiftUI, not played from a file. Its four brackets are pieces of one rounded-square outline,
+centered on the corners. A rounded square whose corner radius is half its side is a circle, so animating the radius
+turns the face's brackets into the arcs of a spinner, and lengthening the pieces to a quarter each closes the ring
+before the tick draws itself. A miss turns it back into the face, which shakes its head.
 
 The window lets every click through. While it offers a retry, a 20 Hz timer checks whether the pointer is over the
 notch, since a click-through window gets no mouse events of its own.
