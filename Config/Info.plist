@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Merged with the keys Xcode generates from the build settings. -->
+
+	<!-- Updates (Sparkle): the appcast attached to the latest GitHub release. -->
+	<key>SUFeedURL</key>
+	<string>https://github.com/Pallepadehat/WatchMyFace/releases/latest/download/appcast.xml</string>
+	<!-- The public half of the key releases are signed with. The private half is in the maintainer's keychain. -->
+	<key>SUPublicEDKey</key>
+	<string>a2aDCeXU6guCPxkhwJft91YTTCb1MCA+GWbktxrzOOA=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+
+	<!-- Asked once, during setup. -->
+	<key>NSCameraUsageDescription</key>
+	<string>WatchMyFace looks for your face when your Mac is locked, to unlock it. Frames are compared in memory and never saved or sent anywhere.</string>
+</dict>
+</plist>

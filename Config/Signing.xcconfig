@@ -1,0 +1,13 @@
+// Code signing for WatchMyFace.
+//
+// Builds work out of the box without a team ("Sign to Run Locally").
+// To sign with your own Apple developer team, copy Local.xcconfig.example to
+// Local.xcconfig (git-ignored) and fill in your team ID.
+//
+// A team-signed build matters more for this app than most: macOS ties the Camera and Accessibility permissions,
+// and the Keychain item holding your password, to the app's signature. An ad hoc build gets a new one every time,
+// so each rebuild asks for those again.
+
+CODE_SIGN_STYLE = Automatic
+
+#include? "Local.xcconfig"
