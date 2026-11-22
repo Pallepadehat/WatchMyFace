@@ -22,7 +22,9 @@ struct SecuritySettings: View {
             } header: {
                 Text("Recognition")
             } footer: {
-                Text("Strict needs a clear, straight look; Relaxed unlocks more readily, for lookalikes too. A blink keeps out a printed photo, though not a video.")
+                Text(
+                    "Strict needs a clear, straight look; Relaxed unlocks more readily, for lookalikes too. A blink keeps out a printed photo, though not a video."
+                )
             }
 
             Section {
@@ -34,7 +36,9 @@ struct SecuritySettings: View {
             } header: {
                 Text("Guardrails")
             } footer: {
-                Text("Face unlock also stops after five missed scans in a row, and two days after Touch ID last turned it on. Then you type your password once and use Touch ID to turn it back on, like face unlock on iPhone.")
+                Text(
+                    "Face unlock also stops after five missed scans in a row, and two days after Touch ID last turned it on. Then you type your password once and use Touch ID to turn it back on, like face unlock on iPhone."
+                )
             }
 
             Section {
@@ -48,11 +52,13 @@ struct SecuritySettings: View {
             } header: {
                 Text("Login password")
             } footer: {
-                Text("Saved in your login keychain, readable only by WatchMyFace, and loaded into memory only after Touch ID. Changed your password? Forget it here and set up again.")
+                Text(
+                    "Saved in your login keychain, readable only by WatchMyFace, and loaded into memory only after Touch ID. Changed your password? Forget it here and set up again."
+                )
             }
         }
         .formStyle(.grouped)
-        .onChange(of: preferences.lockedInactivityMinutes) { model.unlock.disarm() }
+        .onChange(of: preferences.lockedInactivityMinutes) { model.unlock.applyLimits() }
         .confirmationDialog("Forget your password?", isPresented: $confirmingForget) {
             Button("Forget Password", role: .destructive) {
                 do {

@@ -68,6 +68,12 @@ final class UnlockCoordinator {
         policy.arm(at: .now)
     }
 
+    /// After the limits change in Settings: they apply from now, and a guardrail the new ones trip stops face unlock.
+    func applyLimits() {
+        policy.limits = preferences.unlockLimits
+        enforcePolicy()
+    }
+
     func disarm() {
         policy.disarm()
         vault.disarm()

@@ -62,7 +62,8 @@ final class NotchController {
     @ObservationIgnored private var pointerWasInside = false
 
     init() {
-        geometry = NotchGeometry.preferredScreen().map(NotchGeometry.forScreen)
+        geometry =
+            NotchGeometry.preferredScreen().map(NotchGeometry.forScreen)
             ?? NotchGeometry(closedSize: CGSize(width: 92, height: 26), style: .island)
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main

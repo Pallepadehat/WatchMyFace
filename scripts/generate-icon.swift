@@ -1,5 +1,4 @@
-#!/usr/bin/env swift
-// Draws the WatchMyFace app icon and logo.
+#!/usr/bin/env swift  // Draws the WatchMyFace app icon and logo.
 //
 //   swift scripts/generate-icon.swift
 //

@@ -42,7 +42,9 @@ private struct WelcomeStep: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: 460)
             Label {
-                Text("A Mac camera sees in 2D, so this isn't as secure as Touch ID or your password. A lookalike or a video of you could fool it. Use it for convenience, not protection.")
+                Text(
+                    "A Mac camera sees in 2D, so this isn't as secure as Touch ID or your password. A lookalike or a video of you could fool it. Use it for convenience, not protection."
+                )
             } icon: {
                 Image(systemName: "exclamationmark.shield.fill").foregroundStyle(.orange)
             }

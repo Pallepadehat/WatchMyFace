@@ -65,6 +65,16 @@ private struct ProfileRow: View {
     let update: (FaceProfile) -> Void
     let remove: () -> Void
 
+    private var isEnabled: Binding<Bool> {
+        Binding {
+            profile.isEnabled
+        } set: { enabled in
+            var changed = profile
+            changed.isEnabled = enabled
+            update(changed)
+        }
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "person.crop.circle.fill")
@@ -83,12 +93,10 @@ private struct ProfileRow: View {
                 .foregroundStyle(.secondary)
             }
             Spacer()
-            Toggle(
-                "Use", isOn: Binding(get: { profile.isEnabled }, set: { var copy = profile; copy.isEnabled = $0; update(copy) })
-            )
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.small)
+            Toggle("Use", isOn: isEnabled)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
             Button(role: .destructive, action: remove) {
                 Image(systemName: "trash")
             }

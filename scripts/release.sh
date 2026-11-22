@@ -1,0 +1,120 @@
+#!/bin/zsh
+# Makes a release: builds WatchMyFace.dmg and publishes it as a GitHub release, along with appcast.xml, where the
+# app itself finds it (Sparkle) and install.sh does too. The version comes from MARKETING_VERSION in the Xcode project;
+# the notes from its section in CHANGELOG.md.
+#
+# Releases are made from `main` only, which gets nothing but merges from `develop` (see .github/CONTRIBUTING.md, "Making a
+# release"). The script refuses to run on any other branch, or when main isn't in step with origin/main.
+#
+# The appcast is signed with the "WatchMyFace" Sparkle key in your keychain (its public half is SUPublicEDKey in
+# Config/Info.plist). Back it up: `generate_keys --account WatchMyFace -x watchmyface-sparkle-key.txt`. Without
+# it, copies already out there can't update.
+#
+#   ./scripts/release.sh                       signed with Developer ID and notarized by Apple
+#   ./scripts/release.sh --without-notarizing  signed with Developer ID if you have it (otherwise your Apple
+#                                              Development certificate), not notarized. install.sh still opens it
+#                                              without a warning.
+#   ./scripts/release.sh --skip-checks         without running scripts/check.sh first (lint, tests, builds).
+#                                              Only for when you've just run it on this very commit.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+REPO="Pallepadehat/WatchMyFace"
+NOTARIZE=1
+CHECKS=1
+for arg in "$@"; do
+  case "$arg" in
+    --without-notarizing) NOTARIZE=0 ;;
+    --skip-checks) CHECKS=0 ;;
+    *) echo "Unknown option: $arg"; exit 1 ;;
+  esac
+done
+
+command -v gh >/dev/null || { echo "This needs the GitHub CLI: brew install gh, then gh auth login."; exit 1; }
+
+# xcodebuild needs Xcode, not just the Command Line Tools: with only those selected, reading the version below
+# failed without a word.
+if [[ -z "${DEVELOPER_DIR:-}" && "$(xcode-select -p 2>/dev/null)" != *Xcode*.app* ]]; then
+  XCODE=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort | tail -1)
+  [[ -n "$XCODE" ]] || { echo "This needs Xcode (27 or later)."; exit 1; }
+  export DEVELOPER_DIR="$XCODE/Contents/Developer"
+fi
+
+# Only main is released. Everything else lands on develop first and reaches main through a pull request.
+BRANCH=$(git symbolic-ref --quiet --short HEAD || echo "(detached HEAD)")
+if [[ "$BRANCH" != "main" ]]; then
+  echo "Releases are made from main, but you're on $BRANCH."
+  echo "Merge develop into main through a pull request first, then:"
+  echo "  git switch main && git pull && ./scripts/release.sh"
+  exit 1
+fi
+
+[[ -z "$(git status --porcelain)" ]] || { echo "Commit or stash your changes first, so the release matches the code."; exit 1; }
+git fetch origin main --tags --quiet
+if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
+  echo "Your main isn't the same as origin/main. Run git pull (and push nothing to main directly), then try again."
+  exit 1
+fi
+
+VERSION=$(xcodebuild -project WatchMyFace.xcodeproj -scheme WatchMyFace -showBuildSettings 2>/dev/null \
+  | sed -nE 's/^[[:space:]]*MARKETING_VERSION = (.*)$/\1/p' | head -1)
+[[ -n "$VERSION" ]] || { echo "Couldn't read MARKETING_VERSION from the project."; exit 1; }
+TAG="v$VERSION"
+
+if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+  echo "$TAG already exists. Bump MARKETING_VERSION in the project (on develop) first."
+  exit 1
+fi
+
+# This version's section of CHANGELOG.md becomes the release notes.
+# It ends at the next version's heading or at the link references at the bottom.
+NOTES=$(awk -v version="$VERSION" '
+  /^## / { if (found) exit; if (index($0, "[" version "]")) { found = 1; next } }
+  /^\[[^]]+\]: / { if (found) exit }
+  found { print }
+' CHANGELOG.md)
+[[ -n "$NOTES" ]] || { echo "Add a \"## [$VERSION]\" section to CHANGELOG.md (on develop) first."; exit 1; }
+# The notes as the app shows them in its update window: just the changelog, without the install steps added for GitHub.
+APP_NOTES="$NOTES"
+
+# Nothing goes out that fails its tests, got slower than its budgets or baselines, or stopped working end to end.
+if (( CHECKS )); then
+  ./scripts/check.sh || { echo "scripts/check.sh found problems, so $TAG wasn't released."; exit 1; }
+fi
+
+if (( NOTARIZE )); then
+  ./scripts/make-dmg.sh --notarize
+else
+  if [[ "$(security find-identity -v -p codesigning)" == *'"Developer ID Application'* ]]; then
+    ./scripts/make-dmg.sh --sign
+  else
+    ./scripts/make-dmg.sh
+  fi
+  NOTES+=$'\n\n'"> This build isn't notarized by Apple. Install it with the one-liner below, which handles that. If you download the .dmg yourself, see the README for opening it the first time."
+fi
+
+# The appcast: one entry for this version, signed with our EdDSA key, pointing at this release's disk image. The app's
+# SUFeedURL points at releases/latest/download/appcast.xml, so the newest release's appcast is always the one read.
+GENERATE_APPCAST=$(find build/DerivedData/SourcePackages/artifacts -name generate_appcast -type f -perm -u+x | head -1)
+[[ -n "$GENERATE_APPCAST" ]] || { echo "Couldn't find Sparkle's generate_appcast. Build once so Swift packages are fetched."; exit 1; }
+rm -rf build/appcast
+mkdir -p build/appcast
+cp build/WatchMyFace.dmg build/appcast/
+# Named like the disk image, so generate_appcast takes it as this version's release notes and embeds them in the
+# appcast: Sparkle's update window then shows what's new, from the same download as the update itself.
+swift scripts/release-notes.swift "$VERSION" <<< "$APP_NOTES" > build/appcast/WatchMyFace.html \
+  || { echo "Couldn't make the release notes for the update window."; exit 1; }
+"$GENERATE_APPCAST" --account WatchMyFace --embed-release-notes \
+  --download-url-prefix "https://github.com/$REPO/releases/download/$TAG/" \
+  --link "https://github.com/$REPO/releases/tag/$TAG" --maximum-versions 1 build/appcast
+[[ -f build/appcast/appcast.xml ]] || { echo "No appcast was made."; exit 1; }
+grep -q "<description>" build/appcast/appcast.xml || { echo "The appcast has no release notes."; exit 1; }
+
+NOTES+=$'\n\n'"### Install"$'\n\n```sh\ncurl -fsSL https://raw.githubusercontent.com/'"$REPO"$'/main/install.sh | bash\n```'
+
+git tag "$TAG"
+git push origin "$TAG"
+gh release create "$TAG" build/WatchMyFace.dmg build/appcast/appcast.xml --repo "$REPO" --target main \
+  --title "WatchMyFace $VERSION" --notes "$NOTES"
+echo "Released $TAG. Anyone can now install it with:"
+echo "  curl -fsSL https://raw.githubusercontent.com/$REPO/main/install.sh | bash"
