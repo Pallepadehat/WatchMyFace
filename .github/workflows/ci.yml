@@ -1,0 +1,79 @@
+name: CI
+
+# Branch protection on develop and main requires these jobs by name (Lint, FaceKit tests, Build app), so keep the
+# names stable. Renaming one means updating the protection rules too.
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check formatting
+        run: swift format lint --strict -r Sources Packages/FaceKit scripts
+      # Xcode sometimes marks source folders "opaque" when the project is opened, which turns the Swift files into
+      # resources and leaves the app with nothing to compile. Catch it here, as the app build may be skipped.
+      - name: Check the project compiles its sources
+        run: |
+          if grep -q '"opaque-folders"' WatchMyFace.xcodeproj/project.xcproj; then
+            echo "::error file=WatchMyFace.xcodeproj/project.xcproj::Source folders are marked opaque-folders, so they won't compile. Remove the \"opaque-folders\" key."
+            exit 1
+          fi
+
+  test:
+    name: FaceKit tests
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run tests
+        working-directory: Packages/FaceKit
+        run: swift test
+
+  build:
+    name: Build app
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      # The project uses Xcode 27's project format, which older Xcode versions can't open. Skip (with a notice) on a
+      # runner that doesn't have Xcode 27 yet.
+      - name: Check the Xcode version
+        id: xcode
+        run: |
+          major=$(xcodebuild -version | head -1 | awk '{print $2}' | cut -d. -f1)
+          if [ "$major" -ge 27 ]; then
+            echo "supported=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice title=App build skipped::The project needs Xcode 27 or later; this runner has Xcode $major."
+            echo "supported=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build
+        if: steps.xcode.outputs.supported == 'true'
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project WatchMyFace.xcodeproj \
+            -scheme WatchMyFace \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            -derivedDataPath build/DerivedData \
+            | tee build.log
+          if grep -E "warning: .*(Sources/WatchMyFace|FaceKit)/" build.log; then
+            echo "::error::The app builds with warnings."
+            exit 1
+          fi

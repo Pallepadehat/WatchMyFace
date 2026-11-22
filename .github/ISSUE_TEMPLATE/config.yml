@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security issue
+    url: https://github.com/Pallepadehat/WatchMyFace/security/advisories/new
+    about: Please report security issues privately, not as a public issue.
+  - name: Ask a question or share an idea
+    url: https://github.com/Pallepadehat/WatchMyFace/discussions
+    about: Questions, ideas and show-and-tell go in Discussions.

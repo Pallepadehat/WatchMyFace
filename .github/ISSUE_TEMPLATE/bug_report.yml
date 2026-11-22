@@ -1,0 +1,53 @@
+name: Bug report
+description: Something isn't working as it should.
+labels: [bug, "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: Please never paste your password, or logs that might contain it, into an issue. WatchMyFace's own logs never include it.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you see, and what did you expect instead? Screenshots or recordings of the notch help a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Lock the Mac with ⌃⌘Q
+        2. Wake it and look at the camera
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log
+      description: >-
+        Optional. Run `/usr/bin/log show --last 5m --predicate 'subsystem == "com.pallepadehat.WatchMyFace"'` right after
+        it happens and paste the output.
+      render: text
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: macOS 27.2
+    validations:
+      required: true
+  - type: input
+    id: mac
+    attributes:
+      label: Mac
+      placeholder: MacBook Pro 14" (M3 Pro, 2023)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: WatchMyFace version
+      description: Shown in Settings › About.
+    validations:
+      required: true
