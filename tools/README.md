@@ -1,12 +1,22 @@
-# Using a face-recognition model
+# The face model
 
-Out of the box, WatchMyFace measures faces with Apple's Vision feature print. It's built in and needs nothing, but it's
-a general image model, not a face model, so it tells people apart by a smaller margin. For sharper recognition, you can
-give WatchMyFace a face-recognition model in Core ML format, such as ArcFace.
+WatchMyFace ships [SFace](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface), a
+face-recognition model from the OpenCV Model Zoo under Apache 2.0, at `Sources/WatchMyFace/Resources/SFace.mlpackage`.
+To rebuild it from the original ONNX file:
 
-WatchMyFace doesn't ship one: the well-known pretrained face models come with licenses that don't allow
-redistribution in an MIT project (InsightFace's ArcFace weights, for example, are for non-commercial research). Check
-the license of any model you use.
+```sh
+python3.12 -m venv tools/.venv
+tools/.venv/bin/pip install coremltools onnx onnx2torch "torch==2.7.0" "torchvision==0.22.0" onnxruntime numpy pillow
+tools/.venv/bin/python tools/convert_sface.py
+```
+
+It checks the download's SHA-256 and that Core ML's output matches ONNX Runtime's.
+
+# Using another face-recognition model
+
+You can swap in a different model in Core ML format, such as ArcFace. Well-known ArcFace weights come with licenses
+that don't allow redistribution (InsightFace's are for non-commercial research), so WatchMyFace doesn't ship them.
+Check the license of any model you use.
 
 ## Install a model
 
@@ -23,7 +33,7 @@ in use. Profiles made with the old model are marked "Made with another face mode
 
 | | |
 | --- | --- |
-| Input | One image input, 112 × 112 RGB. WatchMyFace hands it an upright, square crop of the face with a little margin. |
+| Input | One image input, 112 × 112 RGB. WatchMyFace hands it the face aligned on five points (pupils, nose tip, mouth corners) to the standard ArcFace template. |
 | Output | One multi-array output: the embedding. Any length; WatchMyFace normalizes it. |
 | Preprocessing | Baked into the model (scaling, channel order), since WatchMyFace passes plain pixels. |
 | Description | Optional. The model's description, if set, is the name Settings shows. |

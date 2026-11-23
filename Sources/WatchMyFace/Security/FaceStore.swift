@@ -20,7 +20,8 @@ final class FaceStore {
         load()
     }
 
-    var hasProfiles: Bool { !profiles.isEmpty }
+    /// Whether anyone can unlock: blocked profiles alone (``FaceProfile/Role/blocked``) don't count.
+    var hasProfiles: Bool { profiles.contains { $0.role == .allowed } }
 
     func add(_ profile: FaceProfile) {
         profiles.append(profile)

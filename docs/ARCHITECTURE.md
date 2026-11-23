@@ -36,23 +36,41 @@ flowchart TB
 3. **NotchController** shows the scanning state. The window joins a private SkyLight space at Notification Center's
    lock screen level (`LockScreenSpace`), which is the only way to draw above the lock screen.
 4. **FaceScanner** starts the camera. Each frame goes, on the camera's queue, through:
-   - `FaceAnalyzer`: Vision's face landmarks, giving the box, the head's yaw, pitch and roll, and eye openness;
-   - `FaceCropper`: a square around the face, turned upright, at the embedder's size;
-   - `FaceEmbedder`: the crop as a unit vector;
-   - `FaceMatcher`: the closest profile and whether it clears that profile's threshold.
+   - `FaceAnalyzer`: Vision's face rectangles (for the head's yaw and pitch), then landmarks, giving the box, five
+     points (pupils, nose tip, mouth corners) and eye openness;
+   - `FaceRecognizer`: skips frames that are no fair look at the face: pupils under 28 pixels apart, or, when
+     unlocking, the head turned more than about 25° or tilted more than 20°;
+   - `FaceCropper`: the five points moved onto the ArcFace template in a 112-pixel square (`FaceAlignment`, a least
+     squares similarity fit), in colour; landmarks that don't fit a face's shape give no crop at all;
+   - `FaceEmbedder`: the crop through SFace (Core ML) as a 128-number unit vector;
+   - `FaceMatcher`: the closest allowed profile, whether it clears that profile's threshold, and whether a blocked
+     profile is about as close (then it never passes).
 
-   Frames that arrive while one's being read are dropped, so it never falls behind. Two frames in a row must match the
-   same profile (`MatchStreak`), and, if asked, the eyes must blink (`BlinkDetector`).
+   Frames that arrive while one's being read are dropped, so it never falls behind. Three frames in a row must match
+   the same profile (`MatchStreak`), and, if asked, the eyes must blink (`BlinkDetector`).
 5. On a match the notch plays the tick, `PasswordTyper` types the password at the HID event tap and presses Return,
    and the notch closes back into the housing.
 
 ## Thresholds that adapt
 
-Embedders differ a lot in how far apart they put two people. Apple's Vision feature print is general purpose and puts
-everyone fairly close; a face-recognition model spreads people far apart. So there's no single number. Each
-`FaceProfile` measures how alike its own enrollment samples are (`baseline`: the 20th percentile of each sample's
-similarity to the centroid of the others), and the chosen sensitivity sets the threshold some way below that, never
-below the embedder's floor. Both the profile's centroid and its closest sample must clear it.
+Each `FaceProfile` measures how alike its own enrollment samples are (`baseline`: the 20th percentile of each
+sample's similarity to its two closest others), and the chosen sensitivity puts the threshold a share of the way from
+the embedder's floor up to that baseline. A face is compared with the two samples closest to it, so a face turned a
+little left is compared with the samples taken turned left.
+
+The floor is 0.55 cosine similarity for SFace. Through this same pipeline, on official portraits, the same person
+scored 0.65 to 0.99, a father and son 0.33 to 0.49, brothers 0.29 to 0.48, and strangers 0 to 0.41.
+
+**Blocked profiles** are the backstop for a relative or lookalike who still gets close: a face whose similarity to a
+blocked profile comes within 0.05 of its similarity to an allowed one is turned away, so the closer one wins.
+
+## The face model
+
+The app ships SFace, a MobileFaceNet trained with the SFace loss (99.4% on LFW), from the OpenCV Model Zoo under
+Apache 2.0. `tools/convert_sface.py` downloads the ONNX file, checks its hash, converts it through PyTorch to a Core
+ML program with float16 weights, and checks the result against ONNX Runtime. Its first layers subtract 127.5 and
+divide by 128, so it takes plain RGB pixels. If it ever fails to load, `UnavailableEmbedder` takes its place and
+nothing matches: face unlock never falls back to something weaker.
 
 ## The notch
 

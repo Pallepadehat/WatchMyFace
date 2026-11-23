@@ -3,7 +3,6 @@ import CoreML
 import FaceKit
 import Foundation
 import OSLog
-import Vision
 
 /// Turns a cropped face into a ``FaceEmbedding``.
 nonisolated protocol FaceEmbedder: Sendable {
@@ -31,8 +30,10 @@ nonisolated enum FaceEmbedderError: LocalizedError {
     }
 }
 
-/// The embedder to use: a face-recognition Core ML model if one's installed (see tools/README.md), Apple's general
-/// image feature print otherwise.
+/// The embedder to use: your own face-recognition Core ML model if you installed one (see tools/README.md),
+/// otherwise the SFace model that ships with the app.
+///
+/// If neither loads, face unlock doesn't fall back to anything weaker: ``UnavailableEmbedder`` matches nobody.
 nonisolated enum FaceEmbedders {
     static func best() -> any FaceEmbedder {
         if let url = CoreMLFaceEmbedder.installedModelURL {
@@ -42,38 +43,40 @@ nonisolated enum FaceEmbedders {
                 Log.recognition.error("Ignoring the installed face model: \(error.localizedDescription, privacy: .public)")
             }
         }
-        return FeaturePrintEmbedder()
+        do {
+            return try CoreMLFaceEmbedder.bundled()
+        } catch {
+            Log.recognition.fault("The built-in face model didn't load: \(error.localizedDescription, privacy: .public)")
+            return UnavailableEmbedder(reason: error.localizedDescription)
+        }
     }
 }
 
-/// Apple's Vision feature print: built in, nothing to install, and good at "is this the same picture of the same
-/// thing". It isn't trained on faces in particular, so it tells people apart by a smaller margin than a face model
-/// does; profile calibration (``FaceProfile/baseline``) is what makes it usable.
-nonisolated struct FeaturePrintEmbedder: FaceEmbedder {
-    /// v3: crops aligned on the eyes, tight and grey (see ``FaceCropper``). Profiles from earlier crops ask for a rescan.
-    let modelIdentifier = "vision-featureprint-v3"
-    let displayName = "Apple Vision feature print"
-    let inputSize = 224
-    /// About where two different people's tight grey face crops land. Thresholds sit between this and how alike a
-    /// profile's own samples are.
-    let similarityFloor: Float = 0.7
+/// Stands in when no face model loads: measures nothing, so nothing matches and face unlock stays off.
+nonisolated struct UnavailableEmbedder: FaceEmbedder {
+    let reason: String
+    let modelIdentifier = "unavailable"
+    let displayName = "None (the face model didn't load)"
+    let inputSize = 112
+    let similarityFloor: Float = 1
 
     func embedding(for face: CGImage) throws -> FaceEmbedding {
-        let request = VNGenerateImageFeaturePrintRequest()
-        request.imageCropAndScaleOption = .scaleFill
-        try VNImageRequestHandler(cgImage: face).perform([request])
-        guard let observation = request.results?.first else { throw FaceEmbedderError.noResult }
-        return FaceEmbedding(observation.floatValues)
+        throw FaceEmbedderError.modelLoadFailed(reason)
     }
 }
 
-/// A face-recognition model in Core ML format (such as ArcFace, converted with tools/convert_model.py): 112×112 RGB
-/// image in, an embedding out. Much better at telling people apart than the feature print.
+/// A face-recognition model in Core ML format: a 112 × 112 RGB face, aligned on five points (``FaceCropper``), in;
+/// an embedding out. The app ships SFace (OpenCV Zoo, Apache 2.0, converted by tools/convert_sface.py); you can
+/// install another, such as ArcFace.
 nonisolated final class CoreMLFaceEmbedder: FaceEmbedder, @unchecked Sendable {
     let modelIdentifier: String
     let displayName: String
     let inputSize = 112
-    let similarityFloor: Float = 0.35
+    /// Nothing at or under this cosine similarity ever matches. SFace calls 0.36 "probably the same person" (its
+    /// published threshold); unlocking a Mac asks for more than probably. On official portraits, through this same
+    /// pipeline, the same person scored 0.65 to 0.99, a father and son 0.33 to 0.49, brothers 0.29 to 0.48, and
+    /// strangers 0 to 0.41.
+    let similarityFloor: Float = 0.55
     private let model: MLModel
     private let inputName: String
     private let outputName: String
@@ -89,7 +92,17 @@ nonisolated final class CoreMLFaceEmbedder: FaceEmbedder, @unchecked Sendable {
             .first { FileManager.default.fileExists(atPath: $0.path) }
     }
 
-    init(modelURL: URL) throws {
+    /// The SFace model in the app's bundle.
+    static func bundled() throws -> CoreMLFaceEmbedder {
+        guard let url = Bundle.main.url(forResource: "SFace", withExtension: "mlmodelc") else {
+            throw FaceEmbedderError.modelLoadFailed("SFace isn't in the app")
+        }
+        return try CoreMLFaceEmbedder(modelURL: url, identifier: "sface-2021dec-aligned5", name: "SFace (built in)")
+    }
+
+    /// Without an `identifier` and `name`, they're made from the file: replacing the model makes old profiles ask
+    /// for a rescan.
+    init(modelURL: URL, identifier: String? = nil, name: String? = nil) throws {
         do {
             let compiled = modelURL.pathExtension == "mlmodelc" ? modelURL : try MLModel.compileModel(at: modelURL)
             let configuration = MLModelConfiguration()
@@ -106,12 +119,16 @@ nonisolated final class CoreMLFaceEmbedder: FaceEmbedder, @unchecked Sendable {
         }
         inputName = input
         outputName = output
-        let name = (description.metadata[.description] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Core ML face model"
-        displayName = name
-        // The file's size and date stand in for its identity: replacing the model makes old profiles ask for a rescan.
-        let attributes = try? FileManager.default.attributesOfItem(atPath: modelURL.path)
-        let stamp = (attributes?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        modelIdentifier = "coreml-\(Int(stamp))"
+        displayName =
+            name ?? (description.metadata[.description] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Core ML face model"
+        if let identifier {
+            modelIdentifier = identifier
+        } else {
+            // The file's date stands in for its identity.
+            let attributes = try? FileManager.default.attributesOfItem(atPath: modelURL.path)
+            let stamp = (attributes?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+            modelIdentifier = "coreml-\(Int(stamp))"
+        }
     }
 
     func embedding(for face: CGImage) throws -> FaceEmbedding {
@@ -124,17 +141,5 @@ nonisolated final class CoreMLFaceEmbedder: FaceEmbedder, @unchecked Sendable {
         guard let array = result.featureValue(for: outputName)?.multiArrayValue else { throw FaceEmbedderError.noResult }
         let values = (0..<array.count).map { Float(truncating: array[$0]) }
         return FaceEmbedding(values)
-    }
-}
-
-extension VNFeaturePrintObservation {
-    /// The feature print's numbers as `Float`s, whatever type Vision stored them as.
-    nonisolated var floatValues: [Float] {
-        switch elementType {
-        case .double:
-            data.withUnsafeBytes { Array($0.bindMemory(to: Double.self).prefix(elementCount)).map(Float.init) }
-        default:
-            data.withUnsafeBytes { Array($0.bindMemory(to: Float.self).prefix(elementCount)) }
-        }
     }
 }

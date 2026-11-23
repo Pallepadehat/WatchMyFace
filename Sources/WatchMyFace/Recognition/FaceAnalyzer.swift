@@ -12,6 +12,12 @@ nonisolated struct FaceSighting: Sendable {
     let landmarks: Landmarks?
     /// Eye height over width, both eyes averaged; `nil` without landmarks.
     let eyeOpenness: Double?
+    /// Pupils, nose tip and mouth corners, in the frame's pixels (origin bottom left): what the face is aligned on
+    /// before it's measured. `nil` when Vision didn't find them all.
+    let points: FacePoints?
+    /// How far the head is turned (left or right) and tilted (up or down), in radians; `nil` if Vision didn't say.
+    let yaw: Double?
+    let pitch: Double?
 
     struct Landmarks: Sendable {
         /// The eye on the left of the camera's image (the person's right eye).
@@ -32,8 +38,14 @@ nonisolated enum FaceAnalyzer {
 
     /// Every face in the frame, largest first.
     static func faces(in pixelBuffer: CVPixelBuffer) throws -> [FaceSighting] {
-        let request = VNDetectFaceLandmarksRequest()
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up)
+        // The rectangles request measures the head's pose (yaw, pitch, roll); the landmarks request on its own
+        // leaves pitch out. Landmarks are then found in the faces it found, and keep their pose.
+        let rectangles = VNDetectFaceRectanglesRequest()
+        try handler.perform([rectangles])
+        guard let found = rectangles.results, !found.isEmpty else { return [] }
+        let request = VNDetectFaceLandmarksRequest()
+        request.inputFaceObservations = found
         try handler.perform([request])
         let size = CGSize(width: CVPixelBufferGetWidth(pixelBuffer), height: CVPixelBufferGetHeight(pixelBuffer))
         return (request.results ?? [])
@@ -59,7 +71,46 @@ nonisolated enum FaceAnalyzer {
             let (left, right) = first.x < second.x ? (first, second) : (second, first)
             points = FaceSighting.Landmarks(leftEye: left, rightEye: right, nose: nose)
         }
-        return FaceSighting(boundingBox: observation.boundingBox, landmarks: points, eyeOpenness: eyeOpenness(landmarks))
+        return FaceSighting(
+            boundingBox: observation.boundingBox, landmarks: points, eyeOpenness: eyeOpenness(landmarks),
+            points: facePoints(landmarks, imageSize: imageSize), yaw: observation.yaw?.doubleValue,
+            pitch: observation.pitch?.doubleValue)
+    }
+
+    /// The five points recognition models are aligned on. Pupils where Vision found them (eye centers otherwise),
+    /// the lowest point of the nose's crest for its tip, and the ends of the lips for the mouth's corners; "lowest"
+    /// and "ends" measured along the face's own axes, so a tilted head works too.
+    private static func facePoints(_ landmarks: VNFaceLandmarks2D?, imageSize: CGSize) -> FacePoints? {
+        guard let landmarks else { return nil }
+        func points(_ region: VNFaceLandmarkRegion2D?) -> [ImagePoint] {
+            (region?.pointsInImage(imageSize: imageSize) ?? []).map { ImagePoint(x: $0.x, y: $0.y) }
+        }
+        func center(_ points: [ImagePoint]) -> ImagePoint? {
+            guard !points.isEmpty else { return nil }
+            let count = Double(points.count)
+            return ImagePoint(x: points.map(\.x).reduce(0, +) / count, y: points.map(\.y).reduce(0, +) / count)
+        }
+        guard
+            let first = center(points(landmarks.leftPupil)) ?? center(points(landmarks.leftEye)),
+            let second = center(points(landmarks.rightPupil)) ?? center(points(landmarks.rightEye))
+        else { return nil }
+        let lips = points(landmarks.outerLips)
+        let crest = points(landmarks.noseCrest)
+        guard let mouth = center(lips), !crest.isEmpty else { return nil }
+
+        let (left, right) = first.x < second.x ? (first, second) : (second, first)
+        // The face's own axes: across, from the left eye to the right; down, from the eyes towards the mouth.
+        let across = ImagePoint(x: right.x - left.x, y: right.y - left.y)
+        var down = ImagePoint(x: across.y, y: -across.x)
+        let eyes = ImagePoint(x: (left.x + right.x) / 2, y: (left.y + right.y) / 2)
+        if down.x * (mouth.x - eyes.x) + down.y * (mouth.y - eyes.y) < 0 { down = ImagePoint(x: -down.x, y: -down.y) }
+        func along(_ axis: ImagePoint) -> (ImagePoint) -> Double { { $0.x * axis.x + $0.y * axis.y } }
+
+        guard let noseTip = crest.max(by: { along(down)($0) < along(down)($1) }),
+            let leftMouth = lips.min(by: { along(across)($0) < along(across)($1) }),
+            let rightMouth = lips.max(by: { along(across)($0) < along(across)($1) })
+        else { return nil }
+        return FacePoints(leftEye: left, rightEye: right, noseTip: noseTip, leftMouth: leftMouth, rightMouth: rightMouth)
     }
 
     private static func eyeOpenness(_ landmarks: VNFaceLandmarks2D?) -> Double? {

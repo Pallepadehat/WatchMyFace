@@ -17,13 +17,16 @@ struct AboutSettings: View {
                 .multilineTextAlignment(.center)
             HStack(spacing: 16) {
                 Link("GitHub", destination: URL(string: "https://github.com/Pallepadehat/WatchMyFace")!)
+                Link(destination: UpdatesSettings.changelog) { Label("What's New", systemImage: "sparkles") }
                 Link("Report an Issue", destination: URL(string: "https://github.com/Pallepadehat/WatchMyFace/issues/new/choose")!)
             }
-            Text("Notch animation ideas from glance by Jonathan Zhou. Lock screen window technique from SkyLightWindow by Lakr233. Both MIT.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 380)
+            Text(
+                "Notch animation ideas from glance by Jonathan Zhou. Lock screen window technique from SkyLightWindow by Lakr233. Both MIT. Face recognition by SFace (Yaoyao Zhong et al., OpenCV Zoo), Apache 2.0."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: 380)
         }
         .padding(30)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
