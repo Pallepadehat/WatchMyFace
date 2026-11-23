@@ -243,6 +243,7 @@ final class UnlockCoordinator {
     private static func describe(_ result: ScanResult) -> String {
         switch result {
         case .matched: "Recognized"
+        case .noMatch(let closest) where closest?.blockedBy != nil: "Turned away: looks like someone blocked"
         case .noMatch: "Not recognized"
         case .noFace: "No face seen"
         case .failed(let error): error.localizedDescription

@@ -6,21 +6,17 @@ struct FacesSettings: View {
     @State private var confirmingRemoveAll = false
 
     private var embedder: any FaceEmbedder { model.unlock.embedder }
+    private var allowed: [FaceProfile] { model.faces.profiles.filter { $0.role == .allowed } }
+    private var blocked: [FaceProfile] { model.faces.profiles.filter { $0.role == .blocked } }
 
     var body: some View {
         Form {
             Section {
-                if model.faces.profiles.isEmpty {
+                if allowed.isEmpty {
                     ContentUnavailableView(
                         "No faces yet", systemImage: "faceid", description: Text("Set up face unlock to scan your face."))
                 }
-                ForEach(model.faces.profiles) { profile in
-                    ProfileRow(profile: profile, isCompatible: profile.isCompatible(with: embedder.modelIdentifier)) { updated in
-                        model.faces.update(updated)
-                    } remove: {
-                        model.faces.remove(profile.id)
-                    }
-                }
+                ForEach(allowed) { profile in row(for: profile) }
             } header: {
                 Text("Appearances")
             } footer: {
@@ -30,12 +26,24 @@ struct FacesSettings: View {
             Section {
                 HStack {
                     Button(model.faces.hasProfiles ? "Add an Appearance…" : "Set Up Face Unlock…") {
-                        model.showSetup(addingAppearance: model.faces.hasProfiles && model.vault.hasStoredPassword)
+                        model.showSetup(model.faces.hasProfiles && model.vault.hasStoredPassword ? .addAppearance : .setUp)
                     }
                     Spacer()
                     Button("Try Face Unlock") { model.unlock.tryFaceUnlock() }
                         .disabled(!model.faces.hasProfiles)
                 }
+            }
+
+            Section {
+                ForEach(blocked) { profile in row(for: profile) }
+                Button("Block Someone…") { model.showSetup(.blockSomeone) }
+                    .disabled(!model.faces.hasProfiles)
+            } header: {
+                Text("Blocked")
+            } footer: {
+                Text(
+                    "Someone who looks like you, such as a parent or a sibling? Scan their face here. Anyone who looks more like them than like you is turned away."
+                )
             }
 
             Section("Recognition") {
@@ -47,7 +55,7 @@ struct FacesSettings: View {
 
             Section {
                 Button("Remove All Faces…", role: .destructive) { confirmingRemoveAll = true }
-                    .disabled(!model.faces.hasProfiles)
+                    .disabled(model.faces.profiles.isEmpty)
             }
         }
         .formStyle(.grouped)
@@ -55,6 +63,14 @@ struct FacesSettings: View {
             Button("Remove All", role: .destructive) { model.faces.removeAll() }
         } message: {
             Text("Face unlock stops until you scan your face again.")
+        }
+    }
+
+    private func row(for profile: FaceProfile) -> some View {
+        ProfileRow(profile: profile, isCompatible: profile.isCompatible(with: embedder.modelIdentifier)) { updated in
+            model.faces.update(updated)
+        } remove: {
+            model.faces.remove(profile.id)
         }
     }
 }
@@ -77,9 +93,9 @@ private struct ProfileRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "person.crop.circle.fill")
+            Image(systemName: profile.role == .blocked ? "person.crop.circle.badge.xmark" : "person.crop.circle.fill")
                 .font(.title)
-                .foregroundStyle(profile.isEnabled ? .green : .secondary)
+                .foregroundStyle(profile.isEnabled ? (profile.role == .blocked ? .red : .green) : .secondary)
             VStack(alignment: .leading, spacing: 2) {
                 Text(profile.name)
                 Group {

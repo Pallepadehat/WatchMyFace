@@ -1,4 +1,5 @@
 import AppKit
+import FaceKit
 import Observation
 
 /// The steps of setting up, and what each needs before you can go on.
@@ -8,8 +9,20 @@ final class SetupModel {
         case welcome, permissions, faceScan, password, done
     }
 
+    enum Purpose: Equatable {
+        /// The first time: welcome, permissions, your face, your password.
+        case setUp
+        /// Another look of yours (or someone you trust): straight to the face scan.
+        case addAppearance
+        /// Someone who must never unlock this Mac, however much they look like you: a parent, a sibling. They do the
+        /// face scan; their profile only ever turns faces away.
+        case blockSomeone
+    }
+
     private(set) var step: Step
-    let isAddingAppearance: Bool
+    let purpose: Purpose
+    var isAddingAppearance: Bool { purpose != .setUp }
+    var isBlocking: Bool { purpose == .blockSomeone }
     let enrollment: Enrollment
 
     private(set) var hasCamera = CameraSession.isAuthorized
@@ -23,13 +36,17 @@ final class SetupModel {
     @ObservationIgnored private var permissionTimer: Timer?
     @ObservationIgnored var onFinish: (() -> Void)?
 
-    init(model: AppModel, addingAppearance: Bool) {
+    init(model: AppModel, purpose: Purpose) {
         self.model = model
-        isAddingAppearance = addingAppearance
+        self.purpose = purpose
         enrollment = Enrollment(camera: model.scanner.camera, recognizer: model.scanner.recognizer)
-        step = addingAppearance ? .faceScan : .welcome
-        appearanceName = addingAppearance ? "Appearance \(model.faces.profiles.count + 1)" : NSFullUserName()
-        if addingAppearance { Task { await enrollment.start(cameraID: model.preferences.cameraID) } }
+        step = purpose == .setUp ? .welcome : .faceScan
+        switch purpose {
+        case .setUp: appearanceName = NSFullUserName()
+        case .addAppearance: appearanceName = "Appearance \(model.faces.profiles.count + 1)"
+        case .blockSomeone: appearanceName = ""
+        }
+        if purpose != .setUp { Task { await enrollment.start(cameraID: model.preferences.cameraID) } }
     }
 
     var permissionsGranted: Bool { hasCamera && hasAccessibility }
@@ -51,7 +68,10 @@ final class SetupModel {
         case .welcome: go(to: .permissions)
         case .permissions: go(to: .faceScan)
         case .faceScan:
-            model.faces.add(enrollment.makeProfile(named: appearanceName.isEmpty ? "Face" : appearanceName))
+            let fallbackName = isBlocking ? "Blocked face" : "Face"
+            model.faces.add(
+                enrollment.makeProfile(
+                    named: appearanceName.isEmpty ? fallbackName : appearanceName, role: isBlocking ? .blocked : .allowed))
             if isAddingAppearance || model.vault.hasStoredPassword { go(to: .done) } else { go(to: .password) }
         case .password: Task { await savePassword() }
         case .done: finish()

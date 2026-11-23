@@ -34,7 +34,7 @@ final class AppModel {
         }
     }
 
-    func showSetup(addingAppearance: Bool = false) {
-        setupWindow.show(addingAppearance: addingAppearance)
+    func showSetup(_ purpose: SetupModel.Purpose = .setUp) {
+        setupWindow.show(purpose)
     }
 }

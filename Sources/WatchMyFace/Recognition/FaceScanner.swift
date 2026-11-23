@@ -17,8 +17,9 @@ enum ScanResult {
 struct ScanRequest: Sendable {
     var profiles: [FaceProfile]
     var matcher: FaceMatcher
-    /// Frames in a row that must match the same profile.
-    var requiredStreak = 2
+    /// Frames in a row that must match the same profile. A fraction of a second, but one lucky frame (a relative,
+    /// caught at the one angle where they look most like you) can't do it alone.
+    var requiredStreak = 3
     var requireBlink = false
     var timeout: Duration = .seconds(5)
 }
@@ -109,7 +110,7 @@ nonisolated private final class ScanSession: @unchecked Sendable {
             return true
         }
         guard claimed else { return }
-        let reading = recognizer.read(frame)
+        let reading = recognizer.read(frame, for: .unlock)
         let score = reading?.embedding.flatMap {
             request.matcher.scores(for: $0, against: request.profiles, modelIdentifier: modelIdentifier).first
         }
@@ -132,7 +133,7 @@ nonisolated private final class ScanSession: @unchecked Sendable {
         let result: ScanResult = lock.withLock { sawFace ? .noMatch(closest: closest) : .noFace }
         if case .noMatch(let closest?) = result {
             Log.recognition.info(
-                "No match: closest \(closest.similarity, format: .fixed(precision: 3)), needed \(closest.threshold, format: .fixed(precision: 3))"
+                "No match: closest \(closest.similarity, format: .fixed(precision: 3)), needed \(closest.threshold, format: .fixed(precision: 3))\(closest.blockedBy == nil ? "" : ", closer to a blocked face", privacy: .public)"
             )
         } else {
             Log.recognition.info("No face seen")

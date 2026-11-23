@@ -17,7 +17,7 @@ all welcome.
 Sources/WatchMyFace/
   App/          entry point, AppModel (builds and wires everything), Sparkle updater, notch demo
   Camera/       the capture session and the mirrored preview
-  Recognition/  Vision face analysis, upright crops, embedders, the scanner
+  Recognition/  Vision face analysis, 5-point aligned crops, the SFace embedder, the scanner
   Security/     Keychain, the password vault (Touch ID), the encrypted face store
   Unlock/       lock and wake events, the unlock coordinator, typing the password
   Notch/        geometry, shape, window, lock screen space, the view and the Face ID glyph

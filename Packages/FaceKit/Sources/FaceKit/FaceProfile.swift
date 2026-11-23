@@ -1,12 +1,21 @@
 import Foundation
 
-/// One enrolled appearance: you, or you with glasses, or someone else you trust with your Mac.
+/// One enrolled appearance: you, or you with glasses, or someone else you trust with your Mac. Or, the other way
+/// round, someone who must never unlock it (``Role/blocked``), however much they look like you.
 ///
 /// It holds embeddings from every angle the enrollment covered. Matching compares a face with the few closest to it,
 /// so a face turned a little to the left is compared with the samples taken turned to the left.
 public struct FaceProfile: Codable, Identifiable, Hashable, Sendable {
+    /// Whether a face like this one unlocks the Mac, or is turned away.
+    public enum Role: String, Codable, Sendable {
+        case allowed
+        /// A relative or lookalike: a face closer to this profile than to any allowed one never unlocks.
+        case blocked
+    }
+
     public let id: UUID
     public var name: String
+    public var role: Role
     public var isEnabled: Bool
     public let createdAt: Date
     /// Which embedder made the samples. Embeddings from different models can't be compared, so a profile made by
@@ -19,11 +28,12 @@ public struct FaceProfile: Codable, Identifiable, Hashable, Sendable {
     public private(set) var baseline: Float?
 
     public init(
-        id: UUID = UUID(), name: String, isEnabled: Bool = true, createdAt: Date = .now, modelIdentifier: String,
-        samples: [FaceEmbedding]
+        id: UUID = UUID(), name: String, role: Role = .allowed, isEnabled: Bool = true, createdAt: Date = .now,
+        modelIdentifier: String, samples: [FaceEmbedding]
     ) {
         self.id = id
         self.name = name
+        self.role = role
         self.isEnabled = isEnabled
         self.createdAt = createdAt
         self.modelIdentifier = modelIdentifier
@@ -39,6 +49,23 @@ public struct FaceProfile: Codable, Identifiable, Hashable, Sendable {
             return FaceMatcher.nearest(sample, in: others)
         }.sorted()
         return similarities[similarities.count / 5]
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, role, isEnabled, createdAt, modelIdentifier, samples, baseline
+    }
+
+    /// Profiles saved before roles existed are allowed ones.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        role = try container.decodeIfPresent(Role.self, forKey: .role) ?? .allowed
+        isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        modelIdentifier = try container.decode(String.self, forKey: .modelIdentifier)
+        samples = try container.decode([FaceEmbedding].self, forKey: .samples)
+        baseline = try container.decodeIfPresent(Float.self, forKey: .baseline)
     }
 
     public func isCompatible(with modelIdentifier: String) -> Bool {

@@ -38,8 +38,13 @@ floats as an island at the top of the screen.
 **Works on the lock screen.** Wake your Mac (open the lid, press a key) and it starts looking. It shows on the real lock
 screen, above everything.
 
-**Set up like Face ID.** Move your head slowly to complete the circle: the camera in a ring of ticks that turn green as
-you look around. Add more appearances (glasses, a beard, someone you trust) any time.
+**Set up like Face ID.** Move your head slowly to complete the circle, twice, close to the camera: the camera in a
+ring of ticks that turn green as you look around. It keeps the sharpest frames from every angle, and both scans must be
+the same face. Add more appearances (glasses, a beard, someone you trust) any time.
+
+**Tells family apart.** A real face-recognition model (SFace) ships in the app, and every face is lined up on its eyes,
+nose and mouth before it's measured. Only a clear, close, straight look counts. Someone who looks a lot like you, such
+as a parent or sibling? Block them in Settings › Faces: anyone who looks more like them than like you is turned away.
 
 **Guardrails, like face unlock on iPhone.**
 - It only works after a recent Touch ID: one touch arms it, after each launch.
@@ -50,7 +55,7 @@ you look around. Add more appearances (glasses, a beard, someone you trust) any 
 **Private.** Faces are kept as numbers, never pictures, in an encrypted file. Frames are read in memory and thrown
 away. Nothing leaves your Mac: the only network request is Sparkle's update check.
 
-**Fast.** The camera only runs while it's looking, and a scan needs only two matching frames once you're in view.
+**Fast.** The camera only runs while it's looking, and a scan needs three matching frames once you're in view: a fraction of a second.
 
 **Keeps itself up to date** with [Sparkle](https://sparkle-project.org), from signed releases on GitHub.
 
@@ -80,16 +85,17 @@ flowchart LR
     wake[Display wakes, locked] --> armed{Armed and within<br>the guardrails?}
     armed -- no --> notice[Notch: Touch ID needed]
     armed -- yes --> scan[Camera on, notch opens]
-    scan --> vision[Vision finds the face,<br>crops it upright]
-    vision --> embed[Embedder turns it<br>into numbers]
-    embed --> match{Matches a profile<br>2 frames in a row?}
+    scan --> vision[Vision finds the face,<br>lines it up on 5 points]
+    vision --> embed[SFace turns it<br>into numbers]
+    embed --> match{Matches a profile,<br>not a blocked one,<br>3 frames in a row?}
     match -- yes --> tick[Tick in the notch] --> type[Password typed,<br>Return pressed]
     match -- "no, 5 s" --> shake[Red shake, Try Again]
 ```
 
 Matching compares each frame with your enrolled profiles. Each profile's threshold comes from how alike its own
-enrollment samples were, so it adapts to your face and camera. Out of the box it uses Apple's Vision feature print;
-for sharper recognition you can [add a face-recognition model](tools/README.md).
+enrollment samples were, so it adapts to your face and camera, and never drops below a floor that relatives fall
+under. The face model is [SFace](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface)
+(Apache 2.0), converted to Core ML by `tools/convert_sface.py`; you can also [use your own](tools/README.md).
 
 More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -119,4 +125,5 @@ Pull requests are very welcome, into `develop`. Start with [CONTRIBUTING.md](.gi
 
 ## License
 
-[MIT](LICENSE). WatchMyFace isn't affiliated with Apple. Face ID, Touch ID and MacBook are Apple's trademarks.
+[MIT](LICENSE). The bundled SFace model is Apache 2.0; see
+[ThirdPartyNotices.txt](Sources/WatchMyFace/Resources/ThirdPartyNotices.txt). WatchMyFace isn't affiliated with Apple. Face ID, Touch ID and MacBook are Apple's trademarks.

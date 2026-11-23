@@ -8,7 +8,9 @@ can't protect against.
 
 **A Mac camera sees in 2D.** Face ID projects thousands of infrared dots to measure a face in 3D. A MacBook's camera
 sees a flat picture, so anything that looks enough like you to the camera could unlock your Mac: a close lookalike, a
-high-quality photo or a video. "Ask for a blink" in Settings stops a still photo, not a video. Use WatchMyFace where
+high-quality photo or a video. "Ask for a blink" in Settings stops a still photo, not a video. A face-recognition model tells most relatives apart
+(see [ARCHITECTURE.md](ARCHITECTURE.md#thresholds-that-adapt)), and you can block someone who looks a lot like you in
+Settings › Faces, but no 2D camera tells identical twins apart. Use WatchMyFace where
 that risk is acceptable to you, and not on a Mac that holds anything you'd need Face ID–grade protection for.
 
 It only ever unlocks the lock screen. It can't approve `sudo`, unlock passwords in apps or System Settings, Apple Pay
