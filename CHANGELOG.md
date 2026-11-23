@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- 🧠 **A real face-recognition model.** Faces are now measured by SFace, a face-recognition network that ships in the
+  app, instead of Apple's general-purpose image feature print, which saw close relatives as nearly the same person.
+  On official portraits, a father and son now score 0.33–0.49 and the same person 0.65–0.99, against an unlock floor
+  of 0.55. Existing faces are marked "Made with another face model": scan them again.
+- 📐 **Faces lined up like the model expects**: pupils, nose tip and mouth corners moved onto fixed spots, in colour.
+  Landmarks that don't fit a face's shape aren't measured at all.
+- 🎯 **Only a clear look unlocks**: the head within about 25° of straight, close enough for detail, and three
+  matching frames in a row instead of two. Thresholds are stricter at every sensitivity.
+- 🔒 If the face model can't load, face unlock stays off rather than falling back to something weaker.
+
+### Added
+
+- 🚫 **Block someone.** Settings › Faces › Block Someone… scans a person who must never unlock your Mac, such as a
+  parent or sibling. Anyone who looks more like them than like you is turned away.
+
 ## [1.0.0] - 2026-11-22
 
 The first release: face unlock for your Mac, right in the notch.
