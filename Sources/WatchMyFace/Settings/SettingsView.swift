@@ -9,7 +9,7 @@ struct SettingsView: View {
             Tab("General", systemImage: "gearshape") { GeneralSettings(model: model) }
             Tab("Faces", systemImage: "faceid") { FacesSettings(model: model) }
             Tab("Security", systemImage: "lock.shield") { SecuritySettings(model: model) }
-            Tab("Updates", systemImage: "arrow.down.circle") { UpdatesSettings(updater: model.updater) }
+            Tab("Updates", systemImage: "sparkles") { UpdatesSettings(updater: model.updater) }
             Tab("About", systemImage: "info.circle") { AboutSettings() }
         }
         .frame(width: 520)

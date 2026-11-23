@@ -17,6 +17,7 @@ struct AboutSettings: View {
                 .multilineTextAlignment(.center)
             HStack(spacing: 16) {
                 Link("GitHub", destination: URL(string: "https://github.com/Pallepadehat/WatchMyFace")!)
+                Link(destination: UpdatesSettings.changelog) { Label("What's New", systemImage: "sparkles") }
                 Link("Report an Issue", destination: URL(string: "https://github.com/Pallepadehat/WatchMyFace/issues/new/choose")!)
             }
             Text(

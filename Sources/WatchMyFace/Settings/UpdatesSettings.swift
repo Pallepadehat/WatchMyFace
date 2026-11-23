@@ -3,6 +3,9 @@ import SwiftUI
 struct UpdatesSettings: View {
     @Bindable var updater: Updater
 
+    /// The changelog Sparkle's update window takes its notes from, on the release branch.
+    static let changelog = URL(string: "https://github.com/Pallepadehat/WatchMyFace/blob/main/CHANGELOG.md")!
+
     var body: some View {
         Form {
             Section {
@@ -11,7 +14,14 @@ struct UpdatesSettings: View {
                     .disabled(!updater.checksAutomatically)
             }
             Section {
-                LabeledContent("Version", value: updater.currentVersion)
+                LabeledContent("Version") {
+                    HStack(spacing: 10) {
+                        Text(updater.currentVersion).foregroundStyle(.secondary)
+                        Link(destination: Self.changelog) {
+                            Label("What's New", systemImage: "sparkles")
+                        }
+                    }
+                }
                 HStack {
                     Text(stateText).foregroundStyle(.secondary)
                     Spacer()
