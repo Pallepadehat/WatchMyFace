@@ -42,7 +42,7 @@ struct FaceMatcherTests {
     @Test func matchesTheClosestEnabledProfile() {
         let alice = FaceProfile(name: "Alice", modelIdentifier: model, samples: samples(around: [1, 0, 0, 0]))
         let bob = FaceProfile(name: "Bob", modelIdentifier: model, samples: samples(around: [0, 1, 0, 0]))
-        let matcher = FaceMatcher(sensitivity: .balanced, floor: 0.5)
+        let matcher = FaceMatcher(sensitivity: .balanced, floor: 0.65)
 
         #expect(matcher.match(FaceEmbedding([1, 0.02, 0, 0]), against: [alice, bob], modelIdentifier: model)?.profileID == alice.id)
         #expect(matcher.match(FaceEmbedding([0.01, 1, 0.02, 0]), against: [alice, bob], modelIdentifier: model)?.profileID == bob.id)
@@ -78,6 +78,39 @@ struct FaceMatcherTests {
         #expect(score != nil)
     }
 
+    @Test func blockedProfilesTurnAwayFacesCloseToThem() {
+        // Father and son: close together, as a face model sees relatives.
+        let son = FaceProfile(name: "Me", modelIdentifier: model, samples: samples(around: [1, 0.35, 0, 0], spread: 0.02))
+        let father = FaceProfile(
+            name: "Dad", role: .blocked, modelIdentifier: model, samples: samples(around: [1, -0.35, 0, 0], spread: 0.02))
+        let matcher = FaceMatcher(sensitivity: .relaxed, floor: 0.5)
+        let dad = FaceEmbedding([1, -0.3, 0, 0])
+        let me = FaceEmbedding([1, 0.34, 0, 0])
+
+        // Without Dad's profile, he might pass as me.
+        #expect(matcher.match(dad, against: [son], modelIdentifier: model) != nil)
+        // With it, he's turned away, and I still get in.
+        let dadScore = matcher.scores(for: dad, against: [son, father], modelIdentifier: model).first
+        #expect(dadScore?.blockedBy == father.id && dadScore?.passes == false)
+        #expect(matcher.match(dad, against: [son, father], modelIdentifier: model) == nil)
+        #expect(matcher.match(me, against: [son, father], modelIdentifier: model)?.profileID == son.id)
+    }
+
+    @Test func blockedProfilesNeverUnlockThemselves() {
+        let father = FaceProfile(name: "Dad", role: .blocked, modelIdentifier: model, samples: samples(around: [1, 0, 0]))
+        let matcher = FaceMatcher(sensitivity: .relaxed, floor: 0)
+        #expect(matcher.scores(for: FaceEmbedding([1, 0, 0]), against: [father], modelIdentifier: model).isEmpty)
+    }
+
+    @Test func profilesSavedBeforeRolesAreAllowed() throws {
+        let json = """
+            {"id":"6F1C2D3E-0000-4000-8000-000000000001","name":"Me","isEnabled":true,"createdAt":0,
+             "modelIdentifier":"m","samples":[{"values":[1,0]}]}
+            """
+        let profile = try JSONDecoder().decode(FaceProfile.self, from: Data(json.utf8))
+        #expect(profile.role == .allowed)
+    }
+
     @Test func scoresAndMargins() {
         let score = FaceScore(profileID: UUID(), similarity: 0.7, threshold: 0.8)
         #expect(!score.passes)
@@ -86,6 +119,7 @@ struct FaceMatcherTests {
 
     @Test func sensitivityOrdersThresholds() {
         let relaxed = MatchSensitivity.relaxed.threshold(baseline: 0.95, floor: 0.7)
+        #expect(MatchSensitivity.balanced.threshold(baseline: 0.85, floor: 0.5) > 0.6)
         let balanced = MatchSensitivity.balanced.threshold(baseline: 0.95, floor: 0.7)
         let strict = MatchSensitivity.strict.threshold(baseline: 0.95, floor: 0.7)
         #expect(0.7 < relaxed && relaxed < balanced && balanced < strict && strict < 0.95)

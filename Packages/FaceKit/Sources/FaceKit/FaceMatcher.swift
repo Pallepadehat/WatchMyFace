@@ -8,14 +8,17 @@ public struct FaceScore: Equatable, Sendable {
     public let similarity: Float
     /// What it has to reach, for this profile.
     public let threshold: Float
+    /// A blocked profile (``FaceProfile/Role/blocked``) the face is about as close to, or closer: it never passes.
+    public let blockedBy: UUID?
 
-    public init(profileID: UUID, similarity: Float, threshold: Float) {
+    public init(profileID: UUID, similarity: Float, threshold: Float, blockedBy: UUID? = nil) {
         self.profileID = profileID
         self.similarity = similarity
         self.threshold = threshold
+        self.blockedBy = blockedBy
     }
 
-    public var passes: Bool { similarity >= threshold }
+    public var passes: Bool { similarity >= threshold && blockedBy == nil }
 
     /// How far over (or, negative, under) the threshold it is.
     public var margin: Float { similarity - threshold }
@@ -26,9 +29,14 @@ public struct FaceScore: Equatable, Sendable {
 /// Each profile gets its own threshold, somewhere between ``floor`` (how alike the embedder finds two different
 /// people) and the profile's ``FaceProfile/baseline`` (how alike its own samples are), depending on the
 /// ``MatchSensitivity``.
+///
+/// Blocked profiles (a parent, a sibling, a lookalike) turn a face away when it's nearly as close to them as to the
+/// allowed profile: telling two related faces apart is the hard case, so the closer one wins, by a margin.
 public struct FaceMatcher: Sendable {
     /// Averaging over a couple of the closest samples, not just the closest, keeps one odd sample from deciding.
     public static let neighbors = 2
+    /// An allowed profile must beat every blocked one by at least this much similarity.
+    public static let blockedMargin: Float = 0.05
 
     public var sensitivity: MatchSensitivity
     /// About how alike the embedder finds faces of two different people. Nothing at or under it ever matches.
@@ -44,16 +52,22 @@ public struct FaceMatcher: Sendable {
         return sensitivity.threshold(baseline: baseline, floor: floor)
     }
 
-    /// Every enabled, compatible profile's score, best first by how far it clears its own threshold.
+    /// Every enabled, compatible allowed profile's score, best first by how far it clears its own threshold.
     public func scores(for embedding: FaceEmbedding, against profiles: [FaceProfile], modelIdentifier: String)
         -> [FaceScore]
     {
-        profiles
-            .filter { $0.isEnabled && $0.isCompatible(with: modelIdentifier) }
+        let usable = profiles.filter { $0.isEnabled && $0.isCompatible(with: modelIdentifier) }
+        let blocked = usable.filter { $0.role == .blocked }
+            .map { (id: $0.id, similarity: Self.nearest(embedding, in: $0.samples)) }
+            .max { $0.similarity < $1.similarity }
+        return
+            usable
+            .filter { $0.role == .allowed }
             .compactMap { profile -> FaceScore? in
                 guard let threshold = threshold(for: profile) else { return nil }
                 let similarity = Self.nearest(embedding, in: profile.samples)
-                return FaceScore(profileID: profile.id, similarity: similarity, threshold: threshold)
+                let vetoed = blocked.flatMap { $0.similarity + Self.blockedMargin >= similarity ? $0.id : nil }
+                return FaceScore(profileID: profile.id, similarity: similarity, threshold: threshold, blockedBy: vetoed)
             }
             .sorted { $0.margin > $1.margin }
     }
@@ -87,9 +101,9 @@ public enum MatchSensitivity: String, CaseIterable, Codable, Sendable {
     public func threshold(baseline: Float, floor: Float) -> Float {
         let share: Float
         switch self {
-        case .relaxed: share = 0.4
-        case .balanced: share = 0.55
-        case .strict: share = 0.7
+        case .relaxed: share = 0.2
+        case .balanced: share = 0.33
+        case .strict: share = 0.5
         }
         return floor + max(0, baseline - floor) * share
     }
