@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-23
+
+Face unlock that tells family apart: a real face-recognition model, set up with two close-up scans like Face ID, and a
+way to block someone who looks like you.
+
 ### Changed
 
 - 🧠 **A real face-recognition model.** Faces are now measured by SFace, a face-recognition network that ships in the
@@ -27,6 +32,7 @@ All notable changes to this project are documented here. The format follows
   carry the detail that tells relatives apart.
 - ✨ **Only the sharpest frames.** Vision rates every setup frame; near-duplicates are skipped, a sharper frame replaces
   the blurriest one, and samples that agree with nothing are dropped before saving.
+- 🌟 **What's New** links in Settings › Updates and About open this changelog, the same notes the update window shows.
 - 🚫 **Block someone.** Settings › Faces › Block Someone… scans a person who must never unlock your Mac, such as a
   parent or sibling. Anyone who looks more like them than like you is turned away.
 
@@ -55,5 +61,6 @@ The first release: face unlock for your Mac, right in the notch.
   taps, opening at login, and updates.
 - ⬆️ **Updates** with Sparkle, from signed GitHub releases.
 
-[Unreleased]: https://github.com/Pallepadehat/WatchMyFace/compare/v1.0.0...develop
+[Unreleased]: https://github.com/Pallepadehat/WatchMyFace/compare/v1.1.0...develop
+[1.1.0]: https://github.com/Pallepadehat/WatchMyFace/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Pallepadehat/WatchMyFace/releases/tag/v1.0.0
