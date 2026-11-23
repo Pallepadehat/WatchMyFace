@@ -15,16 +15,16 @@ struct EnrollmentRing: View {
                 .frame(width: diameter, height: diameter)
                 .clipShape(.circle)
                 .overlay {
-                    Circle().fill(.black).opacity(enrollment.isComplete ? 0.55 : 0)
+                    Circle().fill(.black).opacity(enrollment.showsCheck ? 0.55 : 0)
                 }
                 .overlay {
                     Image(systemName: "checkmark")
                         .font(.system(size: 64, weight: .semibold))
                         .foregroundStyle(.green)
-                        .scaleEffect(enrollment.isComplete ? 1 : 0.4)
-                        .opacity(enrollment.isComplete ? 1 : 0)
+                        .scaleEffect(enrollment.showsCheck ? 1 : 0.4)
+                        .opacity(enrollment.showsCheck ? 1 : 0)
                 }
-                .scaleEffect(enrollment.isComplete ? 0.94 : 1)
+                .scaleEffect(enrollment.showsCheck ? 0.94 : 1)
 
             ForEach(0..<tickCount, id: \.self) { index in
                 let isLit = coverage.contains(index)
@@ -37,6 +37,6 @@ struct EnrollmentRing: View {
             }
         }
         .frame(width: diameter + 80, height: diameter + 80)
-        .animation(.spring(response: 0.5, dampingFraction: 0.75), value: enrollment.isComplete)
+        .animation(.spring(response: 0.5, dampingFraction: 0.75), value: enrollment.showsCheck)
     }
 }
