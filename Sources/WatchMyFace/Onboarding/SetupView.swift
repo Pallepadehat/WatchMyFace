@@ -87,6 +87,12 @@ private struct FaceScanStep: View {
         HStack(spacing: 40) {
             EnrollmentRing(enrollment: setup.enrollment)
             VStack(alignment: .leading, spacing: 16) {
+                Text(scanLabel)
+                    .font(.caption.weight(.semibold))
+                    .textCase(.uppercase)
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText())
+                    .animation(.smooth, value: setup.enrollment.pass)
                 Text(setup.enrollment.guidance.text)
                     .font(.system(size: 20, weight: .medium))
                     .fixedSize(horizontal: false, vertical: true)
@@ -109,15 +115,39 @@ private struct FaceScanStep: View {
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 240)
                     PrimaryButton("Continue") { setup.next() }
+                } else if setup.enrollment.guidance == .firstScanDone {
+                    Text(
+                        "Now move your head slowly to complete the circle a second time. Two scans give face unlock twice the angles and light to recognize you by."
+                    )
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    PrimaryButton("Continue") { setup.enrollment.beginNextPass() }
                 } else {
-                    Text("Keep your face in the circle and roll your head around, like drawing a circle with your nose.")
+                    Text(hint)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                        .contentTransition(.opacity)
+                        .animation(.smooth, value: hint)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .animation(.smooth, value: setup.enrollment.isComplete)
+            .animation(.smooth, value: setup.enrollment.guidance)
+        }
+    }
+
+    private var scanLabel: String {
+        setup.enrollment.isComplete
+            ? "Both scans done"
+            : "Scan \(setup.enrollment.pass + 1) of \(Enrollment.passCount)"
+    }
+
+    private var hint: String {
+        switch setup.enrollment.guidance {
+        case .tooFar: "Bring your face close, until it fills most of the circle. Close up, the camera sees the detail that tells you apart from family."
+        case .tooClose: "Lean back a little, so your whole face stays in the circle as you turn."
+        default: "Keep your face in the circle and roll your head around, like drawing a circle with your nose."
         }
     }
 }

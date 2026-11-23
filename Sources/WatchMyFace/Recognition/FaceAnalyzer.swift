@@ -18,6 +18,9 @@ nonisolated struct FaceSighting: Sendable {
     /// How far the head is turned (left or right) and tilted (up or down), in radians; `nil` if Vision didn't say.
     let yaw: Double?
     let pitch: Double?
+    /// Vision's face capture quality, 0 to 1: sharp, well lit and facing the camera ranks higher. Only for ranking
+    /// frames against each other, and only measured when asked (it costs a little).
+    var captureQuality: Float?
 
     struct Landmarks: Sendable {
         /// The eye on the left of the camera's image (the person's right eye).
@@ -37,7 +40,7 @@ nonisolated enum FaceAnalyzer {
     static let minimumProminence = 0.08
 
     /// Every face in the frame, largest first.
-    static func faces(in pixelBuffer: CVPixelBuffer) throws -> [FaceSighting] {
+    static func faces(in pixelBuffer: CVPixelBuffer, measuringQuality: Bool = false) throws -> [FaceSighting] {
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up)
         // The rectangles request measures the head's pose (yaw, pitch, roll); the landmarks request on its own
         // leaves pitch out. Landmarks are then found in the faces it found, and keep their pose.
@@ -48,14 +51,30 @@ nonisolated enum FaceAnalyzer {
         request.inputFaceObservations = found
         try handler.perform([request])
         let size = CGSize(width: CVPixelBufferGetWidth(pixelBuffer), height: CVPixelBufferGetHeight(pixelBuffer))
-        return (request.results ?? [])
-            .map { sighting(from: $0, imageSize: size) }
-            .sorted { $0.boundingBox.width > $1.boundingBox.width }
+        var sightings = (request.results ?? []).map { sighting(from: $0, imageSize: size) }
+        if measuringQuality, let marked = request.results {
+            let quality = VNDetectFaceCaptureQualityRequest()
+            quality.inputFaceObservations = marked
+            try handler.perform([quality])
+            // Matched up by where the face is, which is the same box it was handed.
+            for index in sightings.indices {
+                let box = sightings[index].boundingBox
+                sightings[index].captureQuality =
+                    quality.results?
+                    .min { distance($0.boundingBox, box) < distance($1.boundingBox, box) }?
+                    .faceCaptureQuality
+            }
+        }
+        return sightings.sorted { $0.boundingBox.width > $1.boundingBox.width }
+    }
+
+    private static func distance(_ a: CGRect, _ b: CGRect) -> CGFloat {
+        hypot(a.midX - b.midX, a.midY - b.midY)
     }
 
     /// The face of the person at the Mac: the largest one, if it's big enough to be them.
-    static func primaryFace(in pixelBuffer: CVPixelBuffer) throws -> FaceSighting? {
-        try faces(in: pixelBuffer).first { $0.prominence >= minimumProminence }
+    static func primaryFace(in pixelBuffer: CVPixelBuffer, measuringQuality: Bool = false) throws -> FaceSighting? {
+        try faces(in: pixelBuffer, measuringQuality: measuringQuality).first { $0.prominence >= minimumProminence }
     }
 
     private static func sighting(from observation: VNFaceObservation, imageSize: CGSize) -> FaceSighting {

@@ -34,7 +34,8 @@ nonisolated struct FaceRecognizer: Sendable {
     /// Reads the person at the Mac in this frame, or `nil` if there's nobody (close enough) there.
     func read(_ frame: CameraFrame, for purpose: Purpose, embed: Bool = true) -> FrameReading? {
         do {
-            guard let face = try FaceAnalyzer.primaryFace(in: frame.pixelBuffer) else { return nil }
+            let face = try FaceAnalyzer.primaryFace(in: frame.pixelBuffer, measuringQuality: purpose == .enrollment)
+            guard let face else { return nil }
             guard embed, Self.isMeasurable(face, for: purpose) else { return FrameReading(face: face, embedding: nil) }
             let embedding = FaceCropper.crop(face, from: frame.pixelBuffer, size: embedder.inputSize)
                 .flatMap { try? embedder.embedding(for: $0) }

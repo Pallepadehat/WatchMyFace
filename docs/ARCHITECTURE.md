@@ -51,6 +51,15 @@ flowchart TB
 5. On a match the notch plays the tick, `PasswordTyper` types the password at the HID event tap and presses Return,
    and the notch closes back into the housing.
 
+## Setting up a face
+
+`Enrollment` runs two circles with the head, like Face ID setup, with the face filling at least a fifth of the
+frame's width (about half a metre from a MacBook's camera). Each frame's embedding goes to `SampleCollector` with
+Vision's face capture quality, under its direction (`PoseBin`): up to 10 straight-ahead and 4 per direction, per
+circle. A frame 0.97 alike to one already kept only replaces it if sharper; a full direction swaps out its blurriest.
+The two circles' straight-ahead samples must agree (centroids at least 0.1 over the floor), and samples whose two
+closest others are under 0.15 below the floor are dropped before the profile is saved.
+
 ## Thresholds that adapt
 
 Each `FaceProfile` measures how alike its own enrollment samples are (`baseline`: the 20th percentile of each
