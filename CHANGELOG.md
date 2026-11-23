@@ -20,6 +20,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- 🔁 **Two scans, like Face ID.** Setup now takes two slow circles with the head ("First scan complete", then again),
+  for about four times as many samples, from more angles and light. Both scans must look like the same face, or it
+  starts over.
+- 🔍 **Close up.** The face has to fill a good part of the camera during setup ("Move a little closer"), so the samples
+  carry the detail that tells relatives apart.
+- ✨ **Only the sharpest frames.** Vision rates every setup frame; near-duplicates are skipped, a sharper frame replaces
+  the blurriest one, and samples that agree with nothing are dropped before saving.
 - 🚫 **Block someone.** Settings › Faces › Block Someone… scans a person who must never unlock your Mac, such as a
   parent or sibling. Anyone who looks more like them than like you is turned away.
 

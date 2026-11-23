@@ -38,8 +38,9 @@ floats as an island at the top of the screen.
 **Works on the lock screen.** Wake your Mac (open the lid, press a key) and it starts looking. It shows on the real lock
 screen, above everything.
 
-**Set up like Face ID.** Move your head slowly to complete the circle: the camera in a ring of ticks that turn green as
-you look around. Add more appearances (glasses, a beard, someone you trust) any time.
+**Set up like Face ID.** Move your head slowly to complete the circle, twice, close to the camera: the camera in a
+ring of ticks that turn green as you look around. It keeps the sharpest frames from every angle, and both scans must be
+the same face. Add more appearances (glasses, a beard, someone you trust) any time.
 
 **Tells family apart.** A real face-recognition model (SFace) ships in the app, and every face is lined up on its eyes,
 nose and mouth before it's measured. Only a clear, close, straight look counts. Someone who looks a lot like you, such
