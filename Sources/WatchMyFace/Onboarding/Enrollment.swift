@@ -60,7 +60,7 @@ final class Enrollment {
         let gate = reader
         camera.onFrame = { [weak self] frame in
             guard gate.enter() else { return }
-            let reading = recognizer.read(frame)
+            let reading = recognizer.read(frame, for: .enrollment)
             Task { @MainActor in
                 gate.leave()
                 self?.record(reading)
@@ -87,9 +87,10 @@ final class Enrollment {
         error = nil
     }
 
-    func makeProfile(named name: String) -> FaceProfile {
+    func makeProfile(named name: String, role: FaceProfile.Role = .allowed) -> FaceProfile {
         FaceProfile(
-            name: name, modelIdentifier: recognizer.embedder.modelIdentifier, samples: samples.values.flatMap { $0 })
+            name: name, role: role, modelIdentifier: recognizer.embedder.modelIdentifier,
+            samples: samples.values.flatMap { $0 })
     }
 
     private func record(_ reading: FrameReading?) {

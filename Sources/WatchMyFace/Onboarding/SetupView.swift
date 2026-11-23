@@ -95,10 +95,19 @@ private struct FaceScanStep: View {
                 if let error = setup.enrollment.error {
                     Text(error).foregroundStyle(.red).font(.callout)
                 }
+                if setup.isBlocking, !setup.enrollment.isComplete {
+                    Label("Ask the person you're blocking to sit in front of the camera.", systemImage: "hand.raised.fill")
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if setup.enrollment.isComplete {
-                    TextField("Name", text: $setup.appearanceName, prompt: Text("Name this appearance"))
-                        .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 240)
+                    TextField(
+                        "Name", text: $setup.appearanceName,
+                        prompt: Text(setup.isBlocking ? "Who is this? (Dad, a sibling…)" : "Name this appearance")
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 240)
                     PrimaryButton("Continue") { setup.next() }
                 } else {
                     Text("Keep your face in the circle and roll your head around, like drawing a circle with your nose.")
@@ -155,13 +164,25 @@ private struct DoneStep: View {
                 .font(.system(size: 72))
                 .foregroundStyle(.green)
                 .symbolEffect(.bounce, value: setup.step)
-            Text(setup.isAddingAppearance ? "Appearance added" : "You're all set").font(.system(size: 28, weight: .bold))
-            Text("Lock your Mac with ⌃⌘Q, wake it, and look at it. WatchMyFace lives in the menu bar if you need it.")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: 440)
+            Text(doneTitle).font(.system(size: 28, weight: .bold))
+            Text(
+                setup.isBlocking
+                    ? "Face unlock now turns away anyone who looks more like them than like you."
+                    : "Lock your Mac with ⌃⌘Q, wake it, and look at it. WatchMyFace lives in the menu bar if you need it."
+            )
+            .multilineTextAlignment(.center)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: 440)
             Spacer(minLength: 0)
             PrimaryButton("Done") { setup.finish() }
+        }
+    }
+
+    private var doneTitle: String {
+        switch setup.purpose {
+        case .setUp: "You're all set"
+        case .addAppearance: "Appearance added"
+        case .blockSomeone: "Blocked"
         }
     }
 }
